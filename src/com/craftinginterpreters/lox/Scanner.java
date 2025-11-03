@@ -1,7 +1,9 @@
 package com.craftinginterpreters.lox;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
@@ -11,6 +13,28 @@ public class Scanner {
     private int start = 0;
     private int current = 0;
     private int line = 1;
+
+private static final Map<String, TokenType> keywords;
+
+    static {
+        keywords = new HashMap<>();
+        keywords.put("and",    AND);
+        keywords.put("class",  CLASS);
+        keywords.put("else",   ELSE);
+        keywords.put("false",  FALSE);
+        keywords.put("for",    FOR);
+        keywords.put("fun",    FUN);
+        keywords.put("if",     IF);
+        keywords.put("nil",    NIL);
+        keywords.put("or",     OR);
+        keywords.put("print",  PRINT);
+        keywords.put("return", RETURN);
+        keywords.put("super",  SUPER);
+        keywords.put("this",   THIS);
+        keywords.put("true",   TRUE);
+        keywords.put("var",    VAR);
+        keywords.put("while",  WHILE);
+    }
 
     public Scanner(String source) {
         this.source = source;
@@ -82,9 +106,10 @@ public class Scanner {
             
             default:
                 if (isDigit(c)) {
-                    number(); // Se for dígito, chama rotina de número
+                    number(); 
+                } else if (isAlpha(c)) { // 💡 Adiciona a verificação para letras
+                    identifier(); 
                 } else {
-                    // Chamada temporária: Lox.error, será substituída futuramente.
                     Lox.error(line, "Caractere inesperado."); 
                 }
                 break;
@@ -168,9 +193,19 @@ public class Scanner {
             source.substring(start, current)));
     }
 
-    // 4.7: Rotina de Identificador (apenas o esqueleto para rodar o 4.6)
+    // 4.7: Rotina para reconhecer Identificadores e Palavras-Chave
     private void identifier() {
-        // Implementação completa será feita futuramente.
+        while (isAlphaNumeric(peek())) advance(); // Consome toda a palavra
+        
+        String text = source.substring(start, current);
+        
+        // Verifica no mapa se a palavra é uma palavra-chave (keyword)
+        TokenType type = keywords.get(text);
+        
+        // Se a busca retornar null, não é palavra-chave, é um IDENTIFIER.
+        if (type == null) type = IDENTIFIER;
+        
+        addToken(type); 
     }
 
     // Métodos de verificação de caracteres (necessários para 4.6 e 4.7)
