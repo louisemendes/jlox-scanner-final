@@ -77,9 +77,16 @@ public class Scanner {
                 line++; // Incrementa a linha ao encontrar a quebra de linha.
                 break;
 
-            // Tratamento de erro inicial
+            // 4.6: Strings
+            case '"': string(); break; 
+            
             default:
-                Lox.error(line, "Caractere inesperado.");
+                if (isDigit(c)) {
+                    number(); // Se for dígito, chama rotina de número
+                } else {
+                    // Chamada temporária: Lox.error, será substituída futuramente.
+                    Lox.error(line, "Caractere inesperado."); 
+                }
                 break;
         }
     }
@@ -88,7 +95,7 @@ public class Scanner {
         return current >= source.length();
     }
 
-// Consome o caractere atual e avança o ponteiro
+    // Consome o caractere atual e avança o ponteiro
     private char advance() {
         return source.charAt(current++);
     }
@@ -125,6 +132,47 @@ public class Scanner {
         return source.charAt(current + 1);
     }
     
+// 4.6: Rotina para reconhecer Strings
+    private void string() {
+        while (peek() != '"' && !isAtEnd()) {
+            if (peek() == '\n') line++; // Suporta strings multi-linha
+            advance();
+        }
+
+        if (isAtEnd()) {
+            Lox.error(line, "String não terminada.");
+            return;
+        }
+
+        advance(); // Consome a aspa de fechamento
+
+        // Extrai o valor do literal (sem as aspas)
+        String value = source.substring(start + 1, current - 1);
+        addToken(STRING, value);
+    }
+
+    // 4.6: Rotina para reconhecer Números
+    private void number() {
+        // Consome a parte inteira
+        while (isDigit(peek())) advance();
+
+        // Verifica se há parte fracionária (o ponto e pelo menos um dígito)
+        if (peek() == '.' && isDigit(peekNext())) {
+            advance(); // Consome o '.'
+            // Consome os dígitos da parte fracionária
+            while (isDigit(peek())) advance();
+        }
+
+        // Converte o lexema (string) para Double e adiciona como literal
+        addToken(NUMBER, Double.parseDouble(
+            source.substring(start, current)));
+    }
+
+    // 4.7: Rotina de Identificador (apenas o esqueleto para rodar o 4.6)
+    private void identifier() {
+        // Implementação completa será feita futuramente.
+    }
+
     // Métodos de verificação de caracteres (necessários para 4.6 e 4.7)
     private boolean isDigit(char c) {
         return c >= '0' && c <= '9';
