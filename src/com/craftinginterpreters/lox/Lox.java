@@ -9,12 +9,13 @@ import java.nio.file.Paths;
 import java.util.List;
 
 public class Lox {
+    // 4.1.1: Sinalizador de erro estático
     static boolean hadError = false;
 
     public static void main(String[] args) throws IOException {
         if (args.length > 1) {
             System.out.println("Uso: jlox [script]");
-            System.exit(64);
+            System.exit(64); // EX_USAGE
         } else if (args.length == 1) {
             runFile(args[0]);
         } else {
@@ -25,7 +26,7 @@ public class Lox {
     private static void runFile(String path) throws IOException {
         byte[] bytes = Files.readAllBytes(Paths.get(path));
         run(new String(bytes, Charset.defaultCharset()));
-        if (hadError) System.exit(65);
+        if (hadError) System.exit(65); // EX_DATAERR (Erro no código)
     }
 
     private static void runPrompt() throws IOException {
@@ -36,18 +37,22 @@ public class Lox {
             String line = reader.readLine();
             if (line == null) break;
             run(line);
-            hadError = false;
+            hadError = false; // Reseta o erro no REPL
         }
     }
 
     private static void run(String source) {
+        // 4.4: Inicia o Scanner
         Scanner scanner = new Scanner(source);
         List<Token> tokens = scanner.scanTokens();
+        
+        // Apenas imprime os tokens (para teste do capítulo 4)
         for (Token token : tokens) {
             System.out.println(token);
         }
     }
 
+    // 4.1.1: Funções de Tratamento de Erro
     public static void error(int line, String message) {
         report(line, "", message);
     }
