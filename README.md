@@ -1,6 +1,6 @@
 # Lox: Análise Léxica (Scanning)
 
-Projeto de construção do interpretador Lox, baseado no livro Crafting Interpreters (Capítulo 4). O 
+Projeto de construção do interpretador Lox, baseado no livro Crafting Interpreters.
 
 ### Integrantes da Dupla
 | Nome Completo | Usuário GitHub |
