@@ -1,0 +1,19 @@
+# Diretórios de build e pacotes
+target/
+bin/
+out/
+
+# Arquivos de log e cache
+*.log
+# Arquivos de IDEs (VS Code, IntelliJ, Eclipse)
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+# Binários e Arquivos Gerados
+*.class
+*.jar
+*.zip
