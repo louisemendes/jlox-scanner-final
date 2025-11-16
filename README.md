@@ -1,4 +1,4 @@
-# Lox: Análise Léxica (Scanning)
+# Lox: Análise Léxica
 
 Projeto de construção do interpretador Lox, baseado no livro Crafting Interpreters.
 
