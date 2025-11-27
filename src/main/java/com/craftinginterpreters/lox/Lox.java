@@ -11,11 +11,16 @@ import java.util.List;
 public class Lox {
     // 4.1.1: Sinalizador de erro estático
     static boolean hadError = false;
+    static boolean hadRuntimeError = false; // NOVO: Sinalizador para erros de execução
 
+    // 5.1.4: O interpretador deve ser uma instância persistente
+    // Nota: Criamos a instância aqui para ser usada na classe Lox.
+    private static final Interpreter interpreter = new Interpreter(); // NOVO: Instância do Interpretador
+    
     public static void main(String[] args) throws IOException {
         if (args.length > 1) {
             System.out.println("Uso: jlox [script]");
-            System.exit(64); // EX_USAGE
+            System.out.println(64); // EX_USAGE
         } else if (args.length == 1) {
             runFile(args[0]);
         } else {
@@ -26,7 +31,9 @@ public class Lox {
     private static void runFile(String path) throws IOException {
         byte[] bytes = Files.readAllBytes(Paths.get(path));
         run(new String(bytes, Charset.defaultCharset()));
-        if (hadError) System.exit(65); // EX_DATAERR (Erro no código)
+        
+        if (hadError) System.exit(65); // Erro de sintaxe/análise
+        if (hadRuntimeError) System.exit(70); // NOVO: Código de saída para erro de execução
     }
 
     private static void runPrompt() throws IOException {
@@ -38,6 +45,9 @@ public class Lox {
             if (line == null) break;
             run(line);
             hadError = false; // Reseta o erro no REPL
+            // O hadRuntimeError NÃO é resetado aqui porque o método 'run' chama 'interpret'
+            // que já trata e reporta o erro, mas em modo REPL, não é estritamente necessário resetar a flag 
+            // após cada linha, pois ela só é checada ao sair do programa.
         }
     }
 
@@ -46,13 +56,18 @@ public class Lox {
         Scanner scanner = new Scanner(source);
         List<Token> tokens = scanner.scanTokens();
         
-        // Apenas imprime os tokens (para teste do capítulo 4)
-        for (Token token : tokens) {
-            System.out.println(token);
-        }
+        // NOVO: Inicia o Parser
+        Parser parser = new Parser(tokens);
+        Expr expression = parser.parse();
+
+        // Se houve erro de sintaxe, para.
+        if (hadError) return;
+        
+        // NOVO: Executa o Interpretador
+        interpreter.interpret(expression); // O interpretador fará a chamada final para 'System.out.println'
     }
 
-    // 4.1.1: Funções de Tratamento de Erro
+    // 4.1.1: Funções de Tratamento de Erro (para erros de scanning/parsing)
     public static void error(int line, String message) {
         report(line, "", message);
     }
@@ -61,5 +76,12 @@ public class Lox {
         System.err.println(
             "[linha " + line + "] Erro" + where + ": " + message);
         hadError = true;
+    }
+    
+    // NOVO: Manipulador de erros de execução (chamado pelo Interpreter)
+    public static void runtimeError(RuntimeError error) {
+        System.err.println(error.getMessage() +
+            "\n[linha " + error.token.line + "]");
+        hadRuntimeError = true;
     }
 }
