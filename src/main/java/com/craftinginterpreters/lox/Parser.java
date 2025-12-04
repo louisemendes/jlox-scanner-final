@@ -1,5 +1,6 @@
 package main.java.com.craftinginterpreters.lox;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.craftinginterpreters.lox.TokenType.*;
@@ -16,85 +17,122 @@ public class Parser {
         this.tokens = tokens;
     }
 
-    public Expr parse() {
+    // NOVO: Retorna uma lista de instruções (em vez de apenas uma expressão)
+    public List<Stmt> parse() {
+        List<Stmt> statements = new ArrayList<>();
+        while (!isAtEnd()) {
+            statements.add(declaration()); // O ponto de entrada principal do parser.
+        }
+        return statements;
+    }
+
+    // --- Métodos de Instrução e Declaração (NOVOS) ---
+
+    // 8.3: O ponto de entrada para declarações (var, fun, class ou statement)
+    private Stmt declaration() {
         try {
-            return expression();
+            if (match(VAR)) return varDeclaration();
+            return statement();
         } catch (ParseError error) {
-            return null; 
+            synchronize(); // Tenta se recuperar de um erro
+            return null;
         }
     }
 
+    // 8.3: Declaração de variável (var name = expr;)
+    private Stmt varDeclaration() {
+        Token name = consume(IDENTIFIER, "Esperado nome da variável.");
+
+        Expr initializer = null;
+        if (match(EQUAL)) {
+            initializer = expression();
+        }
+
+        consume(SEMICOLON, "Esperado ';' após declaração de variável.");
+        return new Stmt.Var(name, initializer);
+    }
+
+    // 8.2 & 9.2: Trata as instruções de nível superior (print, if, block e expression)
+    private Stmt statement() {
+        if (match(PRINT)) return printStatement();
+        if (match(LEFT_BRACE)) return new Stmt.Block(block()); // 9.2: Bloco
+        if (match(IF)) return ifStatement(); // 9.3: Condicional
+        
+        return expressionStatement();
+    }
+
+    // 8.2: Instrução print (print expr;)
+    private Stmt printStatement() {
+        Expr value = expression();
+        consume(SEMICOLON, "Esperado ';' depois do valor.");
+        return new Stmt.Print(value);
+    }
+
+    // 8.2: Instrução de expressão (expr;)
+    private Stmt expressionStatement() {
+        Expr expr = expression();
+        consume(SEMICOLON, "Esperado ';' depois da expressão.");
+        return new Stmt.Expression(expr);
+    }
+
+    // 9.2: Parsing do bloco ({ ... })
+    private List<Stmt> block() {
+        List<Stmt> statements = new ArrayList<>();
+
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            statements.add(declaration());
+        }
+
+        consume(RIGHT_BRACE, "Esperado '}' depois do bloco.");
+        return statements;
+    }
+
+    // 9.3: Parsing do condicional (if (condition) then else branch)
+    private Stmt ifStatement() {
+        consume(LEFT_PAREN, "Esperado '(' depois de 'if'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Esperado ')' depois da condição.");
+
+        Stmt thenBranch = statement();
+        Stmt elseBranch = null;
+        if (match(ELSE)) {
+            elseBranch = statement();
+        }
+
+        return new Stmt.If(condition, thenBranch, elseBranch);
+    }
+
+    // --- Métodos de Precedência de Expressão (MODIFICADOS) ---
+    
     private Expr expression() {
-        // A gramática de expressões de Lox começa no nível mais baixo: 'equality'
-        return equality();
+        // 7.1: O ponto de entrada é agora 'assignment'
+        return assignment();
     }
     
-    // --- Métodos de Precedência (PREENCHIDOS) ---
-    
-    // 6.2: Equality (== e !=)
-    private Expr equality() {
-        Expr expr = comparison();
+    // 7.1: Atribuição (NOVO NÍVEL DE PRECEDÊNCIA)
+    private Expr assignment() {
+        Expr expr = equality(); // Começa no nível de precedência mais alto
 
-        while (match(BANG_EQUAL, EQUAL_EQUAL)) {
-            Token operator = previous();
-            Expr right = comparison();
-            expr = new Expr.Binary(expr, operator, right);
+        if (match(EQUAL)) {
+            Token equals = previous();
+            Expr value = assignment(); // Recurso para atribuições em cadeia (a = b = c)
+
+            if (expr instanceof Expr.Variable) {
+                // Se for uma variável, transforma-a em um nó de atribuição
+                Token name = ((Expr.Variable)expr).name;
+                return new Expr.Assign(name, value);
+            }
+            
+            // Se o lado esquerdo não for um LValue (variável), reporta erro.
+            error(equals, "Alvo de atribuição inválido.");
         }
 
         return expr;
     }
+
+    // ... (equality, comparison, term, factor, unary) - Mantidos ...
     
-    // 6.3: Comparison (> >= < <=)
-    private Expr comparison() {
-        Expr expr = term();
-
-        while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
-            Token operator = previous();
-            Expr right = term();
-            expr = new Expr.Binary(expr, operator, right);
-        }
-
-        return expr;
-    }
-    
-    // 6.4: Term (+ -)
-    private Expr term() {
-        Expr expr = factor();
-
-        while (match(MINUS, PLUS)) {
-            Token operator = previous();
-            Expr right = factor();
-            expr = new Expr.Binary(expr, operator, right);
-        }
-
-        return expr;
-    }
-    
-    // 6.5: Factor (* /)
-    private Expr factor() {
-        Expr expr = unary();
-
-        while (match(SLASH, STAR)) {
-            Token operator = previous();
-            Expr right = unary();
-            expr = new Expr.Binary(expr, operator, right);
-        }
-
-        return expr;
-    }
-    
-    // 6.6: Unary (! -)
-    private Expr unary() {
-        if (match(BANG, MINUS)) {
-            Token operator = previous();
-            Expr right = unary();
-            return new Expr.Unary(operator, right);
-        }
-
-        return primary();
-    }
-    
-    // 6.7: Primary (Literais, Agrupamento)
+    // 7.1: 'primary' precisa de um novo caso para IDENTIFIER
     private Expr primary() {
         if (match(FALSE)) return new Expr.Literal(false);
         if (match(TRUE)) return new Expr.Literal(true);
@@ -102,6 +140,11 @@ public class Parser {
 
         if (match(NUMBER, STRING)) {
             return new Expr.Literal(previous().literal);
+        }
+        
+        // NOVO: Tratamento de identificadores (referência de variável)
+        if (match(IDENTIFIER)) {
+            return new Expr.Variable(previous());
         }
 
         // Agrupamento
@@ -113,17 +156,15 @@ public class Parser {
         
         throw error(peek(), "Esperado expressão.");
     }
-
-    // --- Funções Auxiliares de Consumo de Tokens (PREENCHIDAS) ---
     
-    // Garante que o token atual seja do tipo esperado e o consome.
+    // --- Funções Auxiliares de Consumo de Tokens (MANTIDAS) ---
+    
     private Token consume(TokenType type, String message) {
         if (check(type)) return advance();
         
         throw error(peek(), message);
     }
 
-    // Verifica se o token atual é de algum dos tipos listados. Se sim, consome.
     private boolean match(TokenType... types) {
         for (TokenType type : types) {
             if (check(type)) {
@@ -134,34 +175,28 @@ public class Parser {
         return false;
     }
 
-    // Verifica se o token atual é de um determinado tipo sem consumi-lo.
     private boolean check(TokenType type) {
         if (isAtEnd()) return false;
         return peek().type == type;
     }
 
-    // Consome o token atual e retorna o token anterior (avançado).
     private Token advance() {
         if (!isAtEnd()) current++;
         return previous();
     }
 
-    // Verifica se chegou ao fim da lista (token EOF)
     private boolean isAtEnd() {
         return peek().type == TokenType.EOF;
     }
 
-    // Retorna o token na posição 'current' sem consumi-lo.
     private Token peek() {
         return tokens.get(current);
     }
 
-    // Retorna o token consumido antes do token 'current'.
     private Token previous() {
         return tokens.get(current - 1);
     }
 
-    // Reporta um erro de parsing e retorna a exceção ParseError.
     private ParseError error(Token token, String message) {
         Lox.error(token.line, message);
         return new ParseError();
@@ -188,5 +223,64 @@ public class Parser {
 
             advance();
         }
+    }
+    
+    // ... (comparison, term, factor, unary) - Não precisam ser modificados, mantendo a estrutura original
+    private Expr equality() {
+        Expr expr = comparison();
+
+        while (match(BANG_EQUAL, EQUAL_EQUAL)) {
+            Token operator = previous();
+            Expr right = comparison();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+    
+    private Expr comparison() {
+        Expr expr = term();
+
+        while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
+            Token operator = previous();
+            Expr right = term();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+    
+    private Expr term() {
+        Expr expr = factor();
+
+        while (match(MINUS, PLUS)) {
+            Token operator = previous();
+            Expr right = factor();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+    
+    private Expr factor() {
+        Expr expr = unary();
+
+        while (match(SLASH, STAR)) {
+            Token operator = previous();
+            Expr right = unary();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+    
+    private Expr unary() {
+        if (match(BANG, MINUS)) {
+            Token operator = previous();
+            Expr right = unary();
+            return new Expr.Unary(operator, right);
+        }
+
+        return primary();
     }
 }
