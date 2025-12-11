@@ -1,4 +1,4 @@
-package main.java.com.craftinginterpreters.lox;
+package com.craftinginterpreters.lox;
 
 // Necessário para o campo 'List<Expr>' (futuramente para o parsing de statements)
 import java.util.List; 

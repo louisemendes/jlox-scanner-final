@@ -1,4 +1,4 @@
-package main.java.com.craftinginterpreters.lox;
+package com.craftinginterpreters.lox;
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
