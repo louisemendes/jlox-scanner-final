@@ -2,6 +2,8 @@ package com.craftinginterpreters.lox;
 
 import java.util.List;
 import java.util.ArrayList; // [Cap. 10] Necessário para lista de argumentos
+import java.util.Map;       // [Cap. 11] Necessário para o mapa de resolução
+import java.util.HashMap;
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
@@ -15,6 +17,7 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * - Cap. 8 (Statements and State)
  * - Cap. 9 (Control Flow)
  * - Cap. 10 (Functions)
+ * - Cap. 11 (Resolving and Binding)
  */
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
@@ -25,6 +28,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     // [Cap. 8] Ambiente Global/Atual.
     // Começa apontando para o global.
     private Environment environment = globals;
+
+    // [Cap. 11] Mapa que guarda a "distância" (número de escopos) até a variável.
+    private final Map<Expr, Integer> locals = new HashMap<>();
 
     /**
      * [Cap. 10] Construtor do Interpretador.
@@ -56,6 +62,11 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
+    }
+
+    // [Cap. 11] Método chamado pelo Resolver para informar a distância de uma variável.
+    void resolve(Expr expr, int depth) {
+        locals.put(expr, depth);
     }
 
     // --- Execução de Statements (Comandos) ---
@@ -133,7 +144,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     // [Cap. 10 - NOVO] Stub para declaração de função.
-   @Override
+    @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
         // [Cap. 10] Agora passamos o ambiente atual (environment) para ser o closure da função
         LoxFunction function = new LoxFunction(stmt, environment);
@@ -144,7 +155,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     // [Cap. 10 - NOVO] Stub para retorno de função.
-   @Override
+    @Override
     public Void visitReturnStmt(Stmt.Return stmt) {
         Object value = null;
         if (stmt.value != null) {
@@ -163,9 +174,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
-        // [Cap. 8] Avalia o valor e o atribui à variável existente.
         Object value = evaluate(expr.value);
-        environment.assign(expr.name, value);
+
+        // [Cap. 11] Verifica se temos informação de distância para essa variável
+        Integer distance = locals.get(expr);
+        if (distance != null) {
+            environment.assignAt(distance, expr.name, value);
+        } else {
+            globals.assign(expr.name, value);
+        }
+
         return value;
     }
 
@@ -282,8 +300,18 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitVariableExpr(Expr.Variable expr) {
-        // [Cap. 8] Busca o valor da variável no ambiente.
-        return environment.get(expr.name);
+        // [Cap. 11] Busca variável usando a distância resolvida ou global
+        return lookUpVariable(expr.name, expr);
+    }
+
+    // [Cap. 11] Auxiliar para buscar variável na distância correta
+    private Object lookUpVariable(Token name, Expr expr) {
+        Integer distance = locals.get(expr);
+        if (distance != null) {
+            return environment.getAt(distance, name.lexeme);
+        } else {
+            return globals.get(name);
+        }
     }
 
     // --- Utilitários (Helpers) ---
