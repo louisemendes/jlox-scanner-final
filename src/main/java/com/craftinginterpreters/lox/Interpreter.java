@@ -133,15 +133,26 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     // [Cap. 10 - NOVO] Stub para declaração de função.
-    @Override
+   @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        return null; // Implementar depois
+        // [Cap. 10] Cria o objeto da função em tempo de execução
+        LoxFunction function = new LoxFunction(stmt);
+        
+        // Define no ambiente atual (variável com o nome da função)
+        environment.define(stmt.name.lexeme, function);
+        return null;
     }
 
     // [Cap. 10 - NOVO] Stub para retorno de função.
-    @Override
+   @Override
     public Void visitReturnStmt(Stmt.Return stmt) {
-        return null; // Implementar depois
+        Object value = null;
+        if (stmt.value != null) {
+            value = evaluate(stmt.value);
+        }
+
+        // Lança a exceção para desenrolar a pilha até o método call()
+        throw new Return(value);
     }
 
     // --- Avaliação de Expressões ---
