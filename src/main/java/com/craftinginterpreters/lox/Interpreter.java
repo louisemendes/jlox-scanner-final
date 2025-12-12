@@ -107,11 +107,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     public Void visitClassStmt(Stmt.Class stmt) {
         environment.define(stmt.name.lexeme, null);
 
-        // Transforma os métodos da sintaxe (Stmt) para runtime (LoxFunction)
         Map<String, LoxFunction> methods = new HashMap<>();
         for (Stmt.Function method : stmt.methods) {
-            // O ambiente "closure" aqui é o ambiente onde a CLASSE foi definida
-            LoxFunction function = new LoxFunction(method, environment);
+            // Verifica se o método é o inicializador "init"
+            boolean isInitializer = method.name.lexeme.equals("init");
+            
+            LoxFunction function = new LoxFunction(method, environment, isInitializer);
             methods.put(method.name.lexeme, function);
         }
 
@@ -168,8 +169,8 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     // [Cap. 10] Declaração de função.
     @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        // Agora passamos o ambiente atual (environment) para ser o closure da função
-        LoxFunction function = new LoxFunction(stmt, environment);
+        // Funções normais nunca são inicializadores (false)
+        LoxFunction function = new LoxFunction(stmt, environment, false);
         environment.define(stmt.name.lexeme, function);
         return null;
     }
