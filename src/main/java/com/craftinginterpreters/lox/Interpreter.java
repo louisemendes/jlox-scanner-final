@@ -18,6 +18,7 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * - Cap. 9 (Control Flow)
  * - Cap. 10 (Functions)
  * - Cap. 11 (Resolving and Binding)
+ * - Cap. 12 (Classes)
  */
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
@@ -98,6 +99,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    // [Cap. 12 - NOVO] Stub para Declaração de Classe
+    @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        return null; // Implementar depois
+    }
+
     @Override
     public Void visitExpressionStmt(Stmt.Expression stmt) {
         evaluate(stmt.expression);
@@ -143,18 +150,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 10 - NOVO] Stub para declaração de função.
+    // [Cap. 10] Declaração de função.
     @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        // [Cap. 10] Agora passamos o ambiente atual (environment) para ser o closure da função
+        // Agora passamos o ambiente atual (environment) para ser o closure da função
         LoxFunction function = new LoxFunction(stmt, environment);
-        
-        // Define no ambiente atual (variável com o nome da função)
         environment.define(stmt.name.lexeme, function);
         return null;
     }
 
-    // [Cap. 10 - NOVO] Stub para retorno de função.
+    // [Cap. 10] Retorno de função.
     @Override
     public Void visitReturnStmt(Stmt.Return stmt) {
         Object value = null;
@@ -232,7 +237,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 10 - NOVO] Lógica de execução de chamadas
+    // [Cap. 10] Lógica de execução de chamadas
     @Override
     public Object visitCallExpr(Expr.Call expr) {
         Object callee = evaluate(expr.callee);
@@ -257,6 +262,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return function.call(this, arguments);
     }
 
+    // [Cap. 12 - NOVO] Stub para Get (acesso a propriedade)
+    @Override
+    public Object visitGetExpr(Expr.Get expr) {
+        return null; // Implementar depois
+    }
+
     @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
         return evaluate(expr.expression);
@@ -278,8 +289,19 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             if (!isTruthy(left)) return left;
         }
 
-        // Só avalia o lado direito se necessário.
         return evaluate(expr.right);
+    }
+
+    // [Cap. 12 - NOVO] Stub para Set (definição de propriedade)
+    @Override
+    public Object visitSetExpr(Expr.Set expr) {
+        return null; // Implementar depois
+    }
+
+    // [Cap. 12 - NOVO] Stub para This
+    @Override
+    public Object visitThisExpr(Expr.This expr) {
+        return null; // Implementar depois
     }
 
     @Override
