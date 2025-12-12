@@ -106,10 +106,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
         environment.define(stmt.name.lexeme, null);
-        
-        // Transforma a sintaxe (AST) em um objeto de runtime (LoxClass)
-        LoxClass klass = new LoxClass(stmt.name.lexeme);
-        
+
+        // Transforma os métodos da sintaxe (Stmt) para runtime (LoxFunction)
+        Map<String, LoxFunction> methods = new HashMap<>();
+        for (Stmt.Function method : stmt.methods) {
+            // O ambiente "closure" aqui é o ambiente onde a CLASSE foi definida
+            LoxFunction function = new LoxFunction(method, environment);
+            methods.put(method.name.lexeme, function);
+        }
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
         environment.assign(stmt.name, klass);
         return null;
     }

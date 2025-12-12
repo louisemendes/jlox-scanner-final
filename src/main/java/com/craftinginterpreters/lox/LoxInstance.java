@@ -18,13 +18,18 @@ class LoxInstance {
         this.klass = klass;
     }
 
-    // [Cap. 12] Busca uma propriedade.
+    // [Cap. 12] Busca uma propriedade ou método.
     Object get(Token name) {
+        // 1. Tenta buscar campo (propriedade) na instância
         if (fields.containsKey(name.lexeme)) {
             return fields.get(name.lexeme);
         }
 
-        // Se não achou, erro de runtime.
+        // 2. Se não achou campo, tenta buscar MÉTODO na classe
+        LoxFunction method = klass.findMethod(name.lexeme);
+        if (method != null) return method;
+
+        // Se não achou nada, erro.
         throw new RuntimeError(name, 
             "Undefined property '" + name.lexeme + "'.");
     }
