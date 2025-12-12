@@ -3,6 +3,9 @@ package com.craftinginterpreters.lox;
 import java.util.List;
 import java.util.ArrayList; // [Cap. 10] Necessário para lista de argumentos
 import java.util.Map;       // [Cap. 11] Necessário para o mapa de resolução
+
+import com.craftinginterpreters.lox.Stmt.Return;
+
 import java.util.HashMap;
 
 import static com.craftinginterpreters.lox.TokenType.*;
@@ -99,10 +102,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - NOVO] Stub para Declaração de Classe
+    // [Cap. 12] Execução da Declaração de Classe
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
-        return null; // Implementar depois
+        environment.define(stmt.name.lexeme, null);
+        
+        // Transforma a sintaxe (AST) em um objeto de runtime (LoxClass)
+        LoxClass klass = new LoxClass(stmt.name.lexeme);
+        
+        environment.assign(stmt.name, klass);
+        return null;
     }
 
     @Override
