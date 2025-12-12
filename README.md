@@ -26,7 +26,7 @@ Construção passo a passo com base no livro *Crafting Interpreters* (Capítulos
 
 Este repositório documenta o desenvolvimento completo de um **interpretador para a linguagem Lox**, conforme apresentado no livro *Crafting Interpreters*, de Robert Nystrom.
 
-A implementação segue fielmente a arquitetura descrita na obra, cobrindo todas as etapas fundamentais de um interpretador moderno: análise léxica e sintática, geração da AST (Árvore Sintática Abstrata), resolução estática de variáveis e execução.
+A implementação cobre todas as etapas fundamentais de um interpretador moderno: análise léxica, análise sintática, construção da AST, resolução de escopos e execução.
 
 Os capítulos principais desta entrega são:
 
@@ -64,7 +64,7 @@ Os capítulos principais desta entrega são:
   </tr>
   <tr>
     <td>2</td>
-    <td>Compreender as fases internas de um interpretador (scanner → parser → resolver → runtime).</td>
+    <td>Compreender todas as fases internas de um interpretador (scanner → parser → resolver → runtime).</td>
   </tr>
   <tr>
     <td>3</td>
@@ -80,7 +80,7 @@ Os capítulos principais desta entrega são:
 
 ## 4. Arquitetura Geral do Interpretador
 
-O interpretador é modular e organizado conforme as fases clássicas de construção de linguagens:
+O interpretador é modular e segue as fases tradicionais de construção de uma linguagem:
 
 <table>
   <tr>
@@ -91,7 +91,7 @@ O interpretador é modular e organizado conforme as fases clássicas de constru�
   <tr>
     <td><strong>Scanner</strong></td>
     <td>Análise Léxica</td>
-    <td>Converte caracteres em tokens.</td>
+    <td>Transforma caracteres em tokens.</td>
   </tr>
   <tr>
     <td><strong>Parser</strong></td>
@@ -101,37 +101,37 @@ O interpretador é modular e organizado conforme as fases clássicas de constru�
   <tr>
     <td><strong>Expr/Stmt (AST)</strong></td>
     <td>Representação Intermediária</td>
-    <td>Modela a estrutura sintática do programa.</td>
+    <td>Estrutura sintática do programa.</td>
   </tr>
   <tr>
     <td><strong>Resolver</strong></td>
-    <td>Análise Semântica</td>
-    <td>Resolve escopos, profundidade e validações semânticas.</td>
+    <td>Análise Semântica Estática</td>
+    <td>Resolução de escopo e validações.</td>
   </tr>
   <tr>
     <td><strong>Interpreter</strong></td>
     <td>Execução</td>
-    <td>Avalia expressões e executa instruções.</td>
+    <td>Avaliação de expressões e instruções.</td>
   </tr>
   <tr>
     <td><strong>Environment</strong></td>
     <td>Tabela de Símbolos</td>
-    <td>Gerencia variáveis, escopos e closures.</td>
+    <td>Gerencia variáveis e closures.</td>
   </tr>
   <tr>
     <td><strong>LoxClass / LoxInstance / LoxFunction</strong></td>
-    <td>Runtime (POO)</td>
-    <td>Implementam classes, métodos e instâncias.</td>
+    <td>Runtime</td>
+    <td>POO: classes, métodos e instâncias.</td>
   </tr>
   <tr>
     <td><strong>GenerateAst</strong></td>
     <td>Metaprogramação</td>
-    <td>Gera as classes da AST automaticamente.</td>
+    <td>Gera automaticamente as classes da AST.</td>
   </tr>
   <tr>
     <td><strong>Lox</strong></td>
     <td>Interface</td>
-    <td>Modo REPL, leitura de arquivos e tratamento de erros.</td>
+    <td>REPL, leitura de arquivos, erros.</td>
   </tr>
 </table>
 
@@ -139,17 +139,16 @@ O interpretador é modular e organizado conforme as fases clássicas de constru�
 
 ## 5. Desenvolvimento por Capítulos
 
-### 5.1 Capítulo 4 — Lox Core  
-- Classe principal `Lox`  
-- REPL  
-- Execução de arquivos  
-- Tratamento de erros  
+### 5.1 Capítulo 4 — Lox Core
+
+- Classe principal `Lox`
+- Modo REPL
+- Execução de arquivos `.lox`
+- Tratamento de erros
 
 ---
 
-### 5.2 Capítulo 5 — Scanner  
-
-O scanner reconhece:
+### 5.2 Capítulo 5 — Scanner
 
 <table>
   <tr>
@@ -180,29 +179,28 @@ O scanner reconhece:
 
 ---
 
-### 5.3 Capítulos 6–7 — Parser e Precedência  
-Implementações:
-
-- binários e unários  
+### 5.3 Capítulos 6 e 7 — Parser e Precedência  
+- expressões binárias  
+- unárias  
 - agrupamento  
 - chamadas de função  
-- AST gerada automaticamente com `GenerateAst`  
+- AST gerada automaticamente via `GenerateAst`
 
 ---
 
-### 5.4 Capítulo 8 — Variáveis e Statements  
+### 5.4 Capítulo 8 — Statements e Variáveis  
 - `var`  
 - `print`  
 - blocos `{}`  
-- escopo léxico (Environment)  
+- escopo léxico com `Environment`
 
 ---
 
 ### 5.5 Capítulo 9 — Controle de Fluxo  
 - `if / else`  
 - `while`  
-- transformação de `for` → `while`  
-- `and`, `or`  
+- `for` (convertido internamente para `while`)  
+- curto-circuito (`and`, `or`)
 
 ---
 
@@ -227,7 +225,7 @@ Implementações:
   </tr>
   <tr>
     <td>LoxFunction</td>
-    <td>Implementa a lógica de chamadas e binding.</td>
+    <td>Implementa execução e binding.</td>
   </tr>
 </table>
 
@@ -242,25 +240,25 @@ Implementações:
   </tr>
   <tr>
     <td>Variáveis não inicializadas</td>
-    <td>Erro ao usar variável antes de definir.</td>
+    <td>Uso antes da definição é proibido.</td>
   </tr>
   <tr>
     <td><code>return</code> inválido</td>
-    <td>Não permitido fora de funções.</td>
+    <td>Proibido fora de funções.</td>
   </tr>
   <tr>
     <td><code>this</code> fora de classe</td>
-    <td>Detecta uso ilegal.</td>
+    <td>Uso ilegal é detectado.</td>
   </tr>
   <tr>
     <td>Profundidade de escopo</td>
-    <td>O resolver informa ao interpretador quantos escopos pular.</td>
+    <td>Resolver informa ao interpretador quantos escopos pular.</td>
   </tr>
 </table>
 
 ---
 
-### 5.8 Capítulo 12 — Classes, Propriedades e Métodos
+### 5.8 Capítulo 12 — Classes, Métodos e Instâncias
 
 <table>
   <tr>
@@ -273,15 +271,15 @@ Implementações:
   </tr>
   <tr>
     <td>Inicializador</td>
-    <td>Método <code>init</code> funciona como construtor.</td>
+    <td>Método <code>init</code> executado como construtor.</td>
   </tr>
   <tr>
     <td>Métodos</td>
-    <td>São funções com binding automático ao <code>this</code>.</td>
+    <td>Funções com binding automático ao <code>this</code>.</td>
   </tr>
   <tr>
     <td>Instâncias</td>
-    <td>Guardam campos dinâmicos.</td>
+    <td>Objetos com campos dinâmicos.</td>
   </tr>
   <tr>
     <td>Acesso a propriedades</td>
@@ -291,9 +289,21 @@ Implementações:
 
 ---
 
-## 6. Execução
+## 6. Execução do Interpretador
 
-### 6.1 Compilação
+### 6.1 Pré-requisitos
+
+- Java JDK 8+
+- Maven 3.9+
+- Terminal ou VS Code
+
+---
+
+## 7. Configuração do Maven
+
+### 7.1 Verificando instalação
 
 ```bash
-mvn clean compile
+mvn -v
+
+
