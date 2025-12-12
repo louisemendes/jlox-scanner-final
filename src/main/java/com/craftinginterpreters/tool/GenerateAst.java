@@ -22,10 +22,11 @@ public class GenerateAst {
         String outputDir = args[0];
 
         // [Cap. 5] Definição da Gramática de Expressões (Expr).
-        // Atualizado para incluir estruturas dos Capítulos 8 (Variáveis) e 9 (Lógica).
+        // Atualizado para incluir estruturas dos Capítulos 8 (Variáveis), 9 (Lógica) e 10 (Funções).
         defineAst(outputDir, "Expr", Arrays.asList(
             "Assign   : Token name, Expr value",                 // [Cap. 8] Atribuição
             "Binary   : Expr left, Token operator, Expr right",  // [Cap. 5] Binário
+            "Call     : Expr callee, Token paren, List<Expr> arguments", // [Cap. 10] Chamada de Função (NOVO)
             "Grouping : Expr expression",                        // [Cap. 5] Agrupamento
             "Literal  : Object value",                           // [Cap. 5] Literal
             "Logical  : Expr left, Token operator, Expr right",  // [Cap. 9] Lógico (and/or)
@@ -38,8 +39,10 @@ public class GenerateAst {
         defineAst(outputDir, "Stmt", Arrays.asList(
             "Block      : List<Stmt> statements",                        // [Cap. 8] Bloco
             "Expression : Expr expression",                              // [Cap. 8] Expr Statement
+            "Function   : Token name, List<Token> params, List<Stmt> body", // [Cap. 10] Declaração de Função (NOVO)
             "If         : Expr condition, Stmt thenBranch, Stmt elseBranch", // [Cap. 9] If
             "Print      : Expr expression",                              // [Cap. 8] Print
+            "Return     : Token keyword, Expr value",                    // [Cap. 10] Retorno de Função (NOVO)
             "Var        : Token name, Expr initializer",                 // [Cap. 8] Var
             "While      : Expr condition, Stmt body"                     // [Cap. 9] While
         ));
