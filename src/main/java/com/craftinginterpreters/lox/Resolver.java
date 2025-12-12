@@ -48,6 +48,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
+    // [Cap. 12 - NOVO] Stub para Classes
+    @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        return null; // Implementar depois
+    }
+
     @Override
     public Void visitVarStmt(Stmt.Var stmt) {
         declare(stmt.name);
@@ -55,25 +61,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             resolve(stmt.initializer);
         }
         define(stmt.name);
-        return null;
-    }
-
-    @Override
-    public Void visitVariableExpr(Expr.Variable expr) {
-        if (!scopes.isEmpty() &&
-            scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
-            Lox.error(expr.name,
-                "Can't read local variable in its own initializer.");
-        }
-
-        resolveLocal(expr, expr.name);
-        return null;
-    }
-
-    @Override
-    public Void visitAssignExpr(Expr.Assign expr) {
-        resolve(expr.value);
-        resolveLocal(expr, expr.name);
         return null;
     }
 
@@ -86,7 +73,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [CORREÇÃO] Este método foi adicionado para corrigir o erro de compilação.
     @Override
     public Void visitExpressionStmt(Stmt.Expression stmt) {
         resolve(stmt.expression);
@@ -129,6 +115,25 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     // --- Visitantes de Expressões ---
 
     @Override
+    public Void visitVariableExpr(Expr.Variable expr) {
+        if (!scopes.isEmpty() &&
+            scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
+            Lox.error(expr.name,
+                "Can't read local variable in its own initializer.");
+        }
+
+        resolveLocal(expr, expr.name);
+        return null;
+    }
+
+    @Override
+    public Void visitAssignExpr(Expr.Assign expr) {
+        resolve(expr.value);
+        resolveLocal(expr, expr.name);
+        return null;
+    }
+
+    @Override
     public Void visitBinaryExpr(Expr.Binary expr) {
         resolve(expr.left);
         resolve(expr.right);
@@ -142,6 +147,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             resolve(argument);
         }
         return null;
+    }
+
+    // [Cap. 12 - NOVO] Stub para Get
+    @Override
+    public Void visitGetExpr(Expr.Get expr) {
+        return null; // Implementar depois
     }
 
     @Override
@@ -160,6 +171,18 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         resolve(expr.left);
         resolve(expr.right);
         return null;
+    }
+
+    // [Cap. 12 - NOVO] Stub para Set
+    @Override
+    public Void visitSetExpr(Expr.Set expr) {
+        return null; // Implementar depois
+    }
+
+    // [Cap. 12 - NOVO] Stub para This
+    @Override
+    public Void visitThisExpr(Expr.This expr) {
+        return null; // Implementar depois
     }
 
     @Override
