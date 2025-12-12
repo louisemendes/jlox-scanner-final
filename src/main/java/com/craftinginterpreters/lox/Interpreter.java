@@ -135,8 +135,8 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     // [Cap. 10 - NOVO] Stub para declaração de função.
    @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        // [Cap. 10] Cria o objeto da função em tempo de execução
-        LoxFunction function = new LoxFunction(stmt);
+        // [Cap. 10] Agora passamos o ambiente atual (environment) para ser o closure da função
+        LoxFunction function = new LoxFunction(stmt, environment);
         
         // Define no ambiente atual (variável com o nome da função)
         environment.define(stmt.name.lexeme, function);
