@@ -77,7 +77,7 @@ public class Lox {
     }
 
     /**
-     * Núcleo do Interpretador: Scanning -> Parsing -> Interpreting.
+     * Núcleo do Interpretador: Scanning -> Parsing -> Resolving -> Interpreting.
      * @param source O código fonte cru.
      */
     private static void run(String source) {
@@ -92,7 +92,15 @@ public class Lox {
         // Se houve erro de sintaxe, paramos aqui. Não tentamos interpretar.
         if (hadError) return;
 
-        // 3. Interpretação (Execution) - [Cap. 8]
+        // 3. Análise Semântica (Resolving) - [Cap. 11 NOVO]
+        // Executa o Resolver para calcular os escopos das variáveis antes de rodar.
+        Resolver resolver = new Resolver(interpreter);
+        resolver.resolve(statements);
+
+        // Se o Resolver encontrar erros (ex: return fora de função), paramos.
+        if (hadError) return;
+
+        // 4. Interpretação (Execution) - [Cap. 8]
         // Executa a lista de declarações gerada pelo Parser.
         interpreter.interpret(statements);
     }
