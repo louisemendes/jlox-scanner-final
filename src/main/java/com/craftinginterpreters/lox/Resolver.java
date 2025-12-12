@@ -6,33 +6,52 @@ import java.util.Map;
 import java.util.Stack;
 
 /**
- * Resolver (Resolvedor de Escopo).
- * Referência: Crafting Interpreters - Capítulo 11 (Resolving and Binding).
- * Este componente faz uma análise semântica estática (antes da execução).
- * Ele percorre a AST para calcular exatamente a qual declaração cada uso de variável se refere.
- * Isso resolve o problema de escopo dinâmico e permite Closures funcionarem corretamente.
+ * Resolver — Analisador de Escopo Estático
+ *
+ * Responsável por realizar a análise semântica estática antes da execução,
+ * determinando exatamente a quais declarações cada ocorrência de variável
+ * se refere. Esse processo resolve ambiguidades de escopo dinâmico
+ * e permite a implementação de closures e ligação lexical (lexical scoping).
+ *
+ * Referências:
+ *  - Crafting Interpreters — Cap. 11 (Resolving and Binding)
+ *  - Crafting Interpreters — Cap. 12 (Classes)
+ *
+ * Funcionamento geral:
+ *  1. Percorre a AST antes da interpretação.
+ *  2. Mantém uma pilha de escopos (stack) composta de mapas { nome → inicializado? }.
+ *  3. Define a “distância” até a declaração de cada variável.
+ *  4. Informa essas distâncias ao Interpreter via interpreter.resolve(expr, depth).
+ *
+ * Sem o Resolver, lookup de variáveis dependeria apenas do ambiente dinâmico —
+ * impedindo closures corretos e levando a ambiguidades de escopo.
  */
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
+
     private final Interpreter interpreter;
 
-    // Pilha de escopos. Cada elemento da pilha é um Mapa que representa um escopo { nome: inicializado? }
+    /** Pilha de escopos léxicos: cada nível é um mapa { nome: inicializado? }. */
     private final Stack<Map<String, Boolean>> scopes = new Stack<>();
 
-    // [Cap. 11] Rastreia se estamos dentro de uma função (para validar return).
+    /** Rastreia o contexto funcional atual (usado para validar retornos). */
     private FunctionType currentFunction = FunctionType.NONE;
 
-    // [Cap. 12 - NOVO] Rastreia se estamos dentro de uma classe (para validar 'this').
+    /** Rastreia o contexto de classe atual (usado para validar uso de 'this'). */
     private ClassType currentClass = ClassType.NONE;
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
     }
 
+    // -------------------------------------------------------------------------
+    // Enumerações internas — estados de contexto
+    // -------------------------------------------------------------------------
+
     private enum FunctionType {
         NONE,
         FUNCTION,
-        INITIALIZER, // [Cap. 12] Tipo específico para construtores
-        METHOD       // [Cap. 12] Diferencia funções soltas de métodos
+        INITIALIZER,  // Cap. 12 — função "init"
+        METHOD        // Cap. 12 — métodos de instância
     }
 
     private enum ClassType {
@@ -40,15 +59,22 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         CLASS
     }
 
-    // --- Ponto de Entrada ---
+    // -------------------------------------------------------------------------
+    // Ponto de entrada
+    // -------------------------------------------------------------------------
 
+    /**
+     * Resolve uma lista de declarações (arquivo completo).
+     */
     void resolve(List<Stmt> statements) {
         for (Stmt statement : statements) {
             resolve(statement);
         }
     }
 
-    // --- Visitantes de Statements (Comandos) ---
+    // -------------------------------------------------------------------------
+    // Visitantes de STATEMENTS
+    // -------------------------------------------------------------------------
 
     @Override
     public Void visitBlockStmt(Stmt.Block stmt) {
@@ -58,7 +84,14 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - ATUALIZADO] Resolve a declaração de classe e seus métodos.
+    /**
+     * Resolução de declaração de classe.
+     *
+     * Cap. 12:
+     *  - Declara o nome no escopo externo.
+     *  - Abre um novo escopo contendo "this".
+     *  - Resolve cada método individualmente.
+     */
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
         ClassType enclosingClass = currentClass;
@@ -67,23 +100,19 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         declare(stmt.name);
         define(stmt.name);
 
-        // [Cap. 12] O escopo do 'this' envolve todos os métodos da classe.
+        // Escopo onde 'this' está disponível
         beginScope();
         scopes.peek().put("this", true);
 
         for (Stmt.Function method : stmt.methods) {
-            FunctionType declaration = FunctionType.METHOD;
-            
-            // [Cap. 12] Se o método se chama "init", ele é um inicializador.
-            if (method.name.lexeme.equals("init")) {
-                declaration = FunctionType.INITIALIZER;
-            }
-            
-            resolveFunction(method, declaration);
+            FunctionType type = method.name.lexeme.equals("init")
+                    ? FunctionType.INITIALIZER
+                    : FunctionType.METHOD;
+
+            resolveFunction(method, type);
         }
 
         endScope();
-
         currentClass = enclosingClass;
         return null;
     }
@@ -102,7 +131,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitFunctionStmt(Stmt.Function stmt) {
         declare(stmt.name);
         define(stmt.name);
-
         resolveFunction(stmt, FunctionType.FUNCTION);
         return null;
     }
@@ -134,13 +162,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         }
 
         if (stmt.value != null) {
-            // [Cap. 12] É proibido retornar um valor dentro de um inicializador (init).
             if (currentFunction == FunctionType.INITIALIZER) {
                 Lox.error(stmt.keyword, "Can't return a value from an initializer.");
             }
-
             resolve(stmt.value);
         }
+
         return null;
     }
 
@@ -151,14 +178,19 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // --- Visitantes de Expressões ---
+    // -------------------------------------------------------------------------
+    // Visitantes de EXPRESSIONS
+    // -------------------------------------------------------------------------
 
+    /**
+     * Variável sendo lida.
+     * Cap. 11: é erro ler variável não inicializada dentro do mesmo escopo.
+     */
     @Override
     public Void visitVariableExpr(Expr.Variable expr) {
-        if (!scopes.isEmpty() &&
-            scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
-            Lox.error(expr.name,
-                "Can't read local variable in its own initializer.");
+        if (!scopes.isEmpty()
+                && Boolean.FALSE.equals(scopes.peek().get(expr.name.lexeme))) {
+            Lox.error(expr.name, "Can't read local variable in its own initializer.");
         }
 
         resolveLocal(expr, expr.name);
@@ -182,13 +214,10 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     @Override
     public Void visitCallExpr(Expr.Call expr) {
         resolve(expr.callee);
-        for (Expr argument : expr.arguments) {
-            resolve(argument);
-        }
+        for (Expr arg : expr.arguments) resolve(arg);
         return null;
     }
 
-    // [Cap. 12 - ATUALIZADO] Resolve a expressão do objeto (ex: bolo em bolo.cor)
     @Override
     public Void visitGetExpr(Expr.Get expr) {
         resolve(expr.object);
@@ -203,7 +232,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitLiteralExpr(Expr.Literal expr) {
-        return null; // Literais não têm variáveis para resolver.
+        return null; // Literais não têm escopo.
     }
 
     @Override
@@ -213,7 +242,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - ATUALIZADO] Resolve valor e objeto do Set (ex: bolo.cor = "Azul")
     @Override
     public Void visitSetExpr(Expr.Set expr) {
         resolve(expr.value);
@@ -221,14 +249,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - ATUALIZADO] Resolve o 'this'
     @Override
     public Void visitThisExpr(Expr.This expr) {
         if (currentClass == ClassType.NONE) {
             Lox.error(expr.keyword, "Can't use 'this' outside of a class.");
             return null;
         }
-
         resolveLocal(expr, expr.keyword);
         return null;
     }
@@ -239,7 +265,9 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // --- Helpers (Métodos Auxiliares) ---
+    // -------------------------------------------------------------------------
+    // Helpers internos
+    // -------------------------------------------------------------------------
 
     private void resolve(Stmt stmt) {
         stmt.accept(this);
@@ -249,8 +277,16 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         expr.accept(this);
     }
 
+    /**
+     * Resolve corpo de uma função/método.
+     *
+     * Cap. 11:
+     *  - Abre novo escopo para parâmetros.
+     *  - Parâmetros são declarados e definidos imediatamente.
+     *  - Corpo é resolvido em seguida.
+     */
     private void resolveFunction(Stmt.Function function, FunctionType type) {
-        FunctionType enclosingFunction = currentFunction;
+        FunctionType enclosing = currentFunction;
         currentFunction = type;
 
         beginScope();
@@ -261,17 +297,21 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         resolve(function.body);
         endScope();
 
-        currentFunction = enclosingFunction;
+        currentFunction = enclosing;
     }
 
     private void beginScope() {
-        scopes.push(new HashMap<String, Boolean>());
+        scopes.push(new HashMap<>());
     }
 
     private void endScope() {
         scopes.pop();
     }
 
+    /**
+     * Declara um nome no escopo atual sem defini-lo.
+     * Cap. 11: permite detectar leitura prematura.
+     */
     private void declare(Token name) {
         if (scopes.isEmpty()) return;
 
@@ -280,25 +320,28 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             Lox.error(name, "Already a variable with this name in this scope.");
         }
 
-        // False significa "declarada, mas ainda não inicializada/definida"
-        scope.put(name.lexeme, false);
+        scope.put(name.lexeme, false); // declarado, não inicializado
     }
 
+    /**
+     * Marca variável como definida (inicialização completa).
+     */
     private void define(Token name) {
         if (scopes.isEmpty()) return;
-        // True significa "totalmente inicializada e pronta para uso"
         scopes.peek().put(name.lexeme, true);
     }
 
+    /**
+     * Determina a que distância (quantos escopos acima) está uma variável.
+     * Essa informação é enviada ao Interpreter.
+     */
     private void resolveLocal(Expr expr, Token name) {
-        // Começa do escopo mais interno e vai subindo
         for (int i = scopes.size() - 1; i >= 0; i--) {
             if (scopes.get(i).containsKey(name.lexeme)) {
-                // Encontrou! Avisa o Interpreter a quantos "pulos" de distância está a variável.
                 interpreter.resolve(expr, scopes.size() - 1 - i);
                 return;
             }
         }
-        // Se não achou na pilha, assume que é Global (e não faz nada aqui).
+        // Não encontrado: variável global. Nada é registrado.
     }
 }

@@ -9,28 +9,34 @@ import java.nio.file.Paths;
 import java.util.List;
 
 /**
- * Classe principal do Interpretador Lox.
- * Responsável por orquestrar as fases de análise e execução.
+ * Classe principal (Main) do Interpretador Lox.
+ * Responsável por iniciar a aplicação e orquestrar o pipeline de execução:
+ * 1. Análise Léxica (Scanning)
+ * 2. Análise Sintática (Parsing)
+ * 3. Análise Semântica (Resolving)
+ * 4. Interpretação (Interpreting)
  *
  * Referência: Crafting Interpreters - Capítulo 4 (Scanning).
  */
 public class Lox {
 
     // [Cap. 4.1] Sinalizador de erro de sintaxe.
-    // Se for true, não tentamos executar o código.
+    // Se for true, interrompe o processo antes da execução para evitar falhas em cascata.
     static boolean hadError = false;
 
-    // [Cap. 7] Sinalizador de erro de execução (Runtime).
+    // [Cap. 7] Sinalizador de erro de tempo de execução (Runtime).
     // Se for true, o processo termina com código de erro específico (70).
     static boolean hadRuntimeError = false;
 
-    // [Cap. 8] Instância do Interpretador.
-    // É estática para que as variáveis globais persistam enquanto o REPL (prompt) estiver aberto.
+    // [Cap. 8] Instância única do Interpretador.
+    // É estática para que o estado (variáveis globais) persista durante uma sessão REPL.
     private static final Interpreter interpreter = new Interpreter();
 
     /**
      * Ponto de entrada da aplicação Java.
-     * @param args Caminho do arquivo de script (opcional).
+     * Suporta dois modos:
+     * 1. Arquivo: jlox [caminho/arquivo.lox]
+     * 2. REPL: jlox (sem argumentos)
      */
     public static void main(String[] args) throws IOException {
         if (args.length > 1) {
@@ -44,7 +50,7 @@ public class Lox {
     }
 
     /**
-     * [Cap. 4] Modo Arquivo: Lê o arquivo inteiro e executa.
+     * [Cap. 4] Modo Arquivo: Lê o arquivo inteiro do disco e executa.
      */
     private static void runFile(String path) throws IOException {
         byte[] bytes = Files.readAllBytes(Paths.get(path));
@@ -56,8 +62,8 @@ public class Lox {
     }
 
     /**
-     * [Cap. 4] Modo Prompt (REPL): Lê linha por linha do terminal.
-     * Útil para testes rápidos e experimentação.
+     * [Cap. 4] Modo Prompt (REPL): Lê linha por linha do terminal (stdin).
+     * Útil para testes rápidos e experimentação interativa.
      */
     private static void runPrompt() throws IOException {
         InputStreamReader input = new InputStreamReader(System.in);
@@ -77,23 +83,26 @@ public class Lox {
     }
 
     /**
-     * Núcleo do Interpretador: Scanning -> Parsing -> Resolving -> Interpreting.
-     * @param source O código fonte cru.
+     * Núcleo do Interpretador.
+     * Executa o código fonte passando por todas as fases da linguagem.
+     * @param source O código fonte cru (String).
      */
     private static void run(String source) {
         // 1. Análise Léxica (Scanning) - [Cap. 4]
+        // Transforma o texto bruto em uma lista de tokens.
         Scanner scanner = new Scanner(source);
         List<Token> tokens = scanner.scanTokens();
 
         // 2. Análise Sintática (Parsing) - [Cap. 6]
+        // Transforma a lista de tokens em uma Árvore de Sintaxe Abstrata (AST).
         Parser parser = new Parser(tokens);
         List<Stmt> statements = parser.parse();
 
-        // Se houve erro de sintaxe, paramos aqui. Não tentamos interpretar.
+        // Se houver erro de sintaxe, paramos aqui. Não tentamos analisar ou executar.
         if (hadError) return;
 
-        // 3. Análise Semântica (Resolving) - [Cap. 11 NOVO]
-        // Executa o Resolver para calcular os escopos das variáveis antes de rodar.
+        // 3. Análise Semântica (Resolving) - [Cap. 11]
+        // Passe estático que resolve os escopos das variáveis antes da execução.
         Resolver resolver = new Resolver(interpreter);
         resolver.resolve(statements);
 
@@ -101,11 +110,11 @@ public class Lox {
         if (hadError) return;
 
         // 4. Interpretação (Execution) - [Cap. 8]
-        // Executa a lista de declarações gerada pelo Parser.
+        // Executa a AST percorrendo os nós e realizando as operações.
         interpreter.interpret(statements);
     }
 
-    // --- Tratamento de Erros ---
+    // --- Tratamento de Erros e Relatórios ---
 
     /**
      * [Cap. 4] Reporta erro de análise léxica (linha específica).
@@ -126,7 +135,8 @@ public class Lox {
     }
 
     /**
-     * [Cap. 7] Reporta erro de tempo de execução (lógica inválida).
+     * [Cap. 7] Reporta erro de tempo de execução (RuntimeError).
+     * Exibe a mensagem e a linha onde ocorreu o erro.
      */
     static void runtimeError(RuntimeError error) {
         System.err.println(error.getMessage() +
@@ -135,7 +145,7 @@ public class Lox {
     }
 
     /**
-     * Método auxiliar para formatar a mensagem de erro no stderr.
+     * Método auxiliar para formatar a mensagem de erro na saída de erro padrão (stderr).
      */
     private static void report(int line, String where, String message) {
         System.err.println(

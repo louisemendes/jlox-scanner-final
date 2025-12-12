@@ -1,44 +1,55 @@
 package com.craftinginterpreters.lox;
 
 import java.util.List;
-import java.util.ArrayList; // [Cap. 10] Necessário para lista de argumentos
-import java.util.Map;       // [Cap. 11] Necessário para o mapa de resolução
-
-import com.craftinginterpreters.lox.Stmt.Return;
-
+import java.util.ArrayList; // [Cap. 10] chamada/argumentos
+import java.util.Map;       // [Cap. 11] mapa de resolução (locals)
 import java.util.HashMap;
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
 /**
- * Interpreter (Interpretador).
- * Responsável por executar a Árvore de Sintaxe Abstrata (AST) gerada pelo Parser.
- * Implementa o padrão Visitor para percorrer os nós da árvore e calcular os resultados.
+ * Interpreter (Interpretador)
+ *
+ * Executa a Árvore de Sintaxe Abstrata (AST) produzida pelo Parser.
+ * Implementa os visitantes Expr.Visitor e Stmt.Visitor e mantém o estado
+ * de execução através de Environment(s).
  *
  * Referências:
- * - Cap. 7 (Evaluating Expressions)
- * - Cap. 8 (Statements and State)
- * - Cap. 9 (Control Flow)
- * - Cap. 10 (Functions)
- * - Cap. 11 (Resolving and Binding)
- * - Cap. 12 (Classes)
+ * - Crafting Interpreters — Cap. 7 (Evaluating Expressions)
+ * - Crafting Interpreters — Cap. 8 (Statements and State)
+ * - Crafting Interpreters — Cap. 9 (Control Flow)
+ * - Crafting Interpreters — Cap. 10 (Functions)
+ * - Crafting Interpreters — Cap. 11 (Resolving and Binding)
+ * - Crafting Interpreters — Cap. 12 (Classes)
  */
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
-    // [Cap. 10] Ambiente Global.
-    // Mantemos uma referência fixa para definir funções nativas depois.
-    final Environment globals = new Environment();
+    /**
+     * Ambiente global (contém funções nativas e variáveis globais).
+     * Imutável enquanto instância do Interpretador.
+     * Referência: CI — Cap. 10 (Native functions / globals).
+     */
+    private final Environment globals = new Environment();
 
-    // [Cap. 8] Ambiente Global/Atual.
-    // Começa apontando para o global.
+    /**
+     * Ambiente atual (stack de escopos). Inicialmente aponta para 'globals'.
+     * Referência: CI — Cap. 8 (Environments).
+     */
     private Environment environment = globals;
 
-    // [Cap. 11] Mapa que guarda a "distância" (número de escopos) até a variável.
+    /**
+     * Mapa usado pelo Resolver para indicar a distância (número de escopos)
+     * entre o escopo atual e o escopo onde uma variável foi declarada.
+     *
+     * Referência: CI — Cap. 11 (Resolver & Binding)
+     */
     private final Map<Expr, Integer> locals = new HashMap<>();
 
     /**
-     * [Cap. 10] Construtor do Interpretador.
-     * Define as funções nativas globais.
+     * Construtor: registra funções nativas no ambiente global.
+     * Ex.: clock()
+     *
+     * Referência: CI — Cap. 10 (Defining native functions in globals)
      */
     public Interpreter() {
         globals.define("clock", new LoxCallable() {
@@ -47,7 +58,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
             @Override
             public Object call(Interpreter interpreter, List<Object> arguments) {
-                return (double)System.currentTimeMillis() / 1000.0;
+                return (double) System.currentTimeMillis() / 1000.0;
             }
 
             @Override
@@ -56,7 +67,10 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     /**
-     * [Cap. 8] Ponto de entrada para execução de uma lista de comandos.
+     * Executa uma lista de declarações (programa).
+     * Lança runtime errors para serem tratados externamente.
+     *
+     * Referência: CI — Cap. 8 (Executing statements)
      */
     public void interpret(List<Stmt> statements) {
         try {
@@ -68,26 +82,33 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
     }
 
-    // [Cap. 11] Método chamado pelo Resolver para informar a distância de uma variável.
+    /**
+     * Chamado pelo Resolver para gravar a distância de resolução de uma expressão.
+     * (Expressões que referenciam variáveis recebem uma distância para lookup rápido).
+     *
+     * Referência: CI — Cap. 11 (Resolver)
+     */
     void resolve(Expr expr, int depth) {
         locals.put(expr, depth);
     }
 
-    // --- Execução de Statements (Comandos) ---
+    // ---------------------------------------------------------------------
+    // Execution helpers
+    // ---------------------------------------------------------------------
 
     private void execute(Stmt stmt) {
         stmt.accept(this);
     }
 
     /**
-     * [Cap. 8] Executa um bloco de código dentro de um escopo específico.
-     * Salva o ambiente anterior, troca para o novo, executa, e restaura o anterior.
+     * Executa um bloco em um ambiente fornecido, preservando o ambiente anterior.
+     *
+     * Referência: CI — Cap. 8 (Blocks / Environments)
      */
     void executeBlock(List<Stmt> statements, Environment environment) {
         Environment previous = this.environment;
         try {
             this.environment = environment;
-
             for (Stmt statement : statements) {
                 execute(statement);
             }
@@ -96,22 +117,30 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
     }
 
+    // ---------------------------------------------------------------------
+    // Stmt.Visitor implementations
+    // ---------------------------------------------------------------------
+
     @Override
     public Void visitBlockStmt(Stmt.Block stmt) {
         executeBlock(stmt.statements, new Environment(environment));
         return null;
     }
 
-    // [Cap. 12] Execução da Declaração de Classe
+    /**
+     * Execução de declaração de classe.
+     *
+     * Referência: CI — Cap. 12 (Classes)
+     * Gramática: classDecl → "class" IDENTIFIER "{" function* "}"
+     */
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
+        // Define o nome da classe no escopo atual antes de construir métodos (permite referências recursivas)
         environment.define(stmt.name.lexeme, null);
 
         Map<String, LoxFunction> methods = new HashMap<>();
         for (Stmt.Function method : stmt.methods) {
-            // Verifica se o método é o inicializador "init"
             boolean isInitializer = method.name.lexeme.equals("init");
-            
             LoxFunction function = new LoxFunction(method, environment, isInitializer);
             methods.put(method.name.lexeme, function);
         }
@@ -147,57 +176,62 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Void visitVarStmt(Stmt.Var stmt) {
         Object value = null;
-        // Se houver inicializador (var a = 1;), avalia.
-        // Se não (var a;), o valor permanece null (nil).
         if (stmt.initializer != null) {
             value = evaluate(stmt.initializer);
         }
-
         environment.define(stmt.name.lexeme, value);
         return null;
     }
 
     @Override
     public Void visitWhileStmt(Stmt.While stmt) {
-        // [Cap. 9] Executa o corpo repetidamente enquanto a condição for verdadeira.
         while (isTruthy(evaluate(stmt.condition))) {
             execute(stmt.body);
         }
         return null;
     }
 
-    // [Cap. 10] Declaração de função.
+    /**
+     * Declaração de função: armazenamos um LoxFunction no ambiente atual.
+     *
+     * Referência: CI — Cap. 10 (Function declarations)
+     */
     @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        // Funções normais nunca são inicializadores (false)
         LoxFunction function = new LoxFunction(stmt, environment, false);
         environment.define(stmt.name.lexeme, function);
         return null;
     }
 
-    // [Cap. 10] Retorno de função.
+    /**
+     * Return statement — interrompe o fluxo atual lançando a exceção Return.
+     *
+     * Referência: CI — Cap. 10 (Return)
+     */
     @Override
     public Void visitReturnStmt(Stmt.Return stmt) {
         Object value = null;
-        if (stmt.value != null) {
-            value = evaluate(stmt.value);
-        }
-
-        // Forçamos o uso da classe de Exceção explicitamente
-        throw new com.craftinginterpreters.lox.Return(value);
+        if (stmt.value != null) value = evaluate(stmt.value);
+        throw new Return(value); // Exceção top-level usada para controlar retorno de função.
     }
 
-    // --- Avaliação de Expressões ---
+    // ---------------------------------------------------------------------
+    // Expr.Visitor implementations
+    // ---------------------------------------------------------------------
 
     private Object evaluate(Expr expr) {
         return expr.accept(this);
     }
 
+    /**
+     * Atribuição: usa 'locals' para decidir onde atribuir (assignAt) ou tratar como global.
+     *
+     * Referência: CI — Cap. 11 (Resolving) e Cap. 8 (Assignment semantics)
+     */
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
         Object value = evaluate(expr.value);
 
-        // [Cap. 11] Verifica se temos informação de distância para essa variável
         Integer distance = locals.get(expr);
         if (distance != null) {
             environment.assignAt(distance, expr.name, value);
@@ -216,44 +250,47 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         switch (expr.operator.type) {
             case GREATER:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left > (double)right;
+                return (double) left > (double) right;
             case GREATER_EQUAL:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left >= (double)right;
+                return (double) left >= (double) right;
             case LESS:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left < (double)right;
+                return (double) left < (double) right;
             case LESS_EQUAL:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left <= (double)right;
+                return (double) left <= (double) right;
             case BANG_EQUAL: return !isEqual(left, right);
             case EQUAL_EQUAL: return isEqual(left, right);
             case MINUS:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left - (double)right;
+                return (double) left - (double) right;
             case PLUS:
-                // [Cap. 7] Sobrecarga do operador + (Soma numérica ou Concatenação).
                 if (left instanceof Double && right instanceof Double) {
-                    return (double)left + (double)right;
+                    return (double) left + (double) right;
                 }
                 if (left instanceof String && right instanceof String) {
-                    return (String)left + (String)right;
+                    return (String) left + (String) right;
                 }
                 throw new RuntimeError(expr.operator,
-                    "Operands must be two numbers or two strings.");
+                        "Operands must be two numbers or two strings.");
             case SLASH:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left / (double)right;
+                return (double) left / (double) right;
             case STAR:
                 checkNumberOperands(expr.operator, left, right);
-                return (double)left * (double)right;
+                return (double) left * (double) right;
         }
 
-        // Unreachable.
+        // Unreachable
         return null;
     }
 
-    // [Cap. 10] Lógica de execução de chamadas
+    /**
+     * Chamada (call) a função/objeto.
+     *
+     * Referência: CI — Cap. 10 (Call and Arity)
+     */
     @Override
     public Object visitCallExpr(Expr.Call expr) {
         Object callee = evaluate(expr.callee);
@@ -267,22 +304,24 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             throw new RuntimeError(expr.paren, "Can only call functions and classes.");
         }
 
-        LoxCallable function = (LoxCallable)callee;
-
+        LoxCallable function = (LoxCallable) callee;
         if (arguments.size() != function.arity()) {
             throw new RuntimeError(expr.paren, "Expected " +
-                function.arity() + " arguments but got " +
-                arguments.size() + ".");
+                    function.arity() + " arguments but got " + arguments.size() + ".");
         }
 
         return function.call(this, arguments);
     }
 
-    // [Cap. 12] Acesso a propriedade: objeto.propriedade
+    /**
+     * Acesso a propriedade (get).
+     *
+     * Referência: CI — Cap. 12 (Property access)
+     */
     @Override
     public Object visitGetExpr(Expr.Get expr) {
         Object object = evaluate(expr.object);
-        
+
         if (object instanceof LoxInstance) {
             return ((LoxInstance) object).get(expr.name);
         }
@@ -300,9 +339,13 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return expr.value;
     }
 
+    /**
+     * Expressões lógicas com short-circuit (and / or).
+     *
+     * Referência: CI — Cap. 9 (Short-circuit logic)
+     */
     @Override
     public Object visitLogicalExpr(Expr.Logical expr) {
-        // [Cap. 9] Lógica de Curto-Circuito (Short-circuit).
         Object left = evaluate(expr.left);
 
         if (expr.operator.type == OR) {
@@ -314,21 +357,28 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return evaluate(expr.right);
     }
 
-    // [Cap. 12] Definição de propriedade: objeto.propriedade = valor
+    /**
+     * Definição de propriedade (set).
+     *
+     * Referência: CI — Cap. 12 (Set on instances)
+     */
     @Override
     public Object visitSetExpr(Expr.Set expr) {
         Object object = evaluate(expr.object);
-
         if (!(object instanceof LoxInstance)) {
             throw new RuntimeError(expr.name, "Only instances have fields.");
         }
 
         Object value = evaluate(expr.value);
-        ((LoxInstance)object).set(expr.name, value);
+        ((LoxInstance) object).set(expr.name, value);
         return value;
     }
 
-    // [Cap. 12] Execução do 'this'
+    /**
+     * 'this' — busca usando o mecanismo de resolução (locals).
+     *
+     * Referência: CI — Cap. 12 (this binding)
+     */
     @Override
     public Object visitThisExpr(Expr.This expr) {
         return lookUpVariable(expr.keyword, expr);
@@ -343,20 +393,24 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 return !isTruthy(right);
             case MINUS:
                 checkNumberOperand(expr.operator, right);
-                return -(double)right;
+                return -(double) right;
         }
 
-        // Unreachable.
+        // Unreachable
         return null;
     }
 
     @Override
     public Object visitVariableExpr(Expr.Variable expr) {
-        // [Cap. 11] Busca variável usando a distância resolvida ou global
         return lookUpVariable(expr.name, expr);
     }
 
-    // [Cap. 11] Auxiliar para buscar variável na distância correta
+    /**
+     * Busca variável usando a informação de resolução (locals).
+     * Se não houver informação (não resolvida), assume global.
+     *
+     * Referência: CI — Cap. 11 (Resolver & Binding)
+     */
     private Object lookUpVariable(Token name, Expr expr) {
         Integer distance = locals.get(expr);
         if (distance != null) {
@@ -366,7 +420,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
     }
 
-    // --- Utilitários (Helpers) ---
+    // ---------------------------------------------------------------------
+    // Helpers: Type checks, truthiness, equality e stringify
+    // ---------------------------------------------------------------------
 
     private void checkNumberOperand(Token operator, Object operand) {
         if (operand instanceof Double) return;
@@ -380,7 +436,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private boolean isTruthy(Object object) {
         if (object == null) return false;
-        if (object instanceof Boolean) return (boolean)object;
+        if (object instanceof Boolean) return (boolean) object;
         return true;
     }
 
@@ -390,6 +446,10 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return a.equals(b);
     }
 
+    /**
+     * Converte valores para representação textual utilizada por 'print'.
+     * Remove ".0" de doubles inteiros (comportamento do livro).
+     */
     private String stringify(Object object) {
         if (object == null) return "nil";
 

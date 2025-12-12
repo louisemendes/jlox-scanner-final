@@ -4,46 +4,74 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * LoxInstance.
- * Referência: Crafting Interpreters - Capítulo 12 (Classes).
- * Representa uma instância concreta (objeto) de uma classe Lox.
+ * Representa uma instância concreta (objeto) de uma LoxClass.
+ *
+ * Referência: Crafting Interpreters – Capítulo 12 (Classes).
+ *
+ * Cada instância possui:
+ *  - Um conjunto de campos próprios (fields).
+ *  - Uma referência à sua classe, responsável por fornecer os métodos.
  */
 class LoxInstance {
-    private LoxClass klass;
-    
-    // [Cap. 12] Mapa de campos (propriedades) da instância.
+
+    /**
+     * Classe da qual esta instância foi criada.
+     * Imutável após construção.
+     */
+    private final LoxClass klass;
+
+    /**
+     * Campos da instância.
+     *
+     * Conforme o livro (cap. 12), instâncias podem ter campos adicionados
+     * dinamicamente via atribuição, mesmo que não tenham sido declarados antes.
+     */
     private final Map<String, Object> fields = new HashMap<>();
 
     LoxInstance(LoxClass klass) {
         this.klass = klass;
     }
 
-    // [Cap. 12] Busca uma propriedade ou método.
+    /**
+     * Resgata um campo ou método associado ao nome solicitado.
+     *
+     * Ordem conforme o livro:
+     *  1. Procura primeiro em fields (propriedades dinâmicas).
+     *  2. Se inexistente, procura método na classe (e nas superclasses, cap. 13).
+     *  3. Caso não exista nada, lança erro.
+     */
     Object get(Token name) {
-        // 1. Tenta buscar campo (propriedade) na instância
+        // 1. Propriedade (campo) definido na instância
         if (fields.containsKey(name.lexeme)) {
             return fields.get(name.lexeme);
         }
 
-        // 2. Se não achou campo, tenta buscar MÉTODO na classe
+        // 2. Método definido na classe
         LoxFunction method = klass.findMethod(name.lexeme);
-        
-        // [Cap. 12 - ATUALIZADO] Se achou um método, vincula ele a esta instância ('this').
-        // Isso cria um novo ambiente onde "this" aponta para este objeto.
-        if (method != null) return method.bind(this);
+        if (method != null) {
+            // Vincula o método à instância, criando o ambiente com "this"
+            return method.bind(this);
+        }
 
-        // Se não achou nada, erro.
-        throw new RuntimeError(name, 
-            "Undefined property '" + name.lexeme + "'.");
+        // 3. Nada encontrado
+        throw new RuntimeError(name,
+                "Undefined property '" + name.lexeme + "'.");
     }
 
-    // [Cap. 12] Define uma propriedade.
+    /**
+     * Define ou sobrescreve um campo na instância.
+     * Em Lox, campos podem ser criados dinamicamente.
+     */
     void set(Token name, Object value) {
         fields.put(name.lexeme, value);
     }
 
+    /**
+     * Representação textual da instância.
+     * Usado no capítulo 12 para facilitar o debugging e o print de objetos.
+     */
     @Override
     public String toString() {
-        return klass.name + " instance";
+        return this.klass.name + " instance";
     }
 }

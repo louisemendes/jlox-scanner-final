@@ -9,26 +9,34 @@ import static com.craftinginterpreters.lox.TokenType.*;
 
 /**
  * Scanner (Analisador Léxico).
- * Responsável por ler o código-fonte (String) e transformá-lo em uma sequência de Tokens.
- * * Conceito chave: "Maximal Munch" (O Scanner sempre tenta capturar o maior token possível).
- * Referência: Crafting Interpreters - Capítulo 4 (Scanning).
+ *
+ * Responsável por percorrer o código-fonte e convertê-lo em uma sequência linear
+ * de Tokens. Implementa o comportamento descrito no Capítulo 4 do livro
+ * "Crafting Interpreters", incluindo:
+ *
+ *  - Estratégia "maximal munch" (captura do maior lexema válido).
+ *  - Lookahead com 1 e 2 caracteres.
+ *  - Reconhecimento de literais, identificadores, operadores e palavras-chave.
+ *  - Tratamento de comentários e whitespace.
+ *  - Geração de tokens com informação de linha.
  */
 public class Scanner {
+
     private final String source;
     private final List<Token> tokens = new ArrayList<>();
 
-    // [Livro 4.4] Gerenciamento de Estado (Ponteiros)
-    // 'start': Aponta para o primeiro caractere do lexema que está sendo processado.
+    // Ponteiro para o início do lexema atual.
     private int start = 0;
-    // 'current': Aponta para o caractere atual sendo analisado (o cursor).
+    // Ponteiro para o caractere sendo analisado neste ciclo.
     private int current = 0;
-    // 'line': Rastreia a linha atual do arquivo (crucial para mensagens de erro).
+    // Contador de linhas para diagnóstico.
     private int line = 1;
 
-    // [Livro 4.7] Palavras Reservadas (Keywords)
-    // Mapa estático para busca rápida (O(1)) de palavras-chave da linguagem.
+    /**
+     * Palavras reservadas da linguagem Lox.
+     * Esta tabela permite diferenciação rápida entre IDENTIFIER e KEYWORD.
+     */
     private static final Map<String, TokenType> keywords;
-
     static {
         keywords = new HashMap<>();
         keywords.put("and",    AND);
@@ -47,6 +55,7 @@ public class Scanner {
         keywords.put("true",   TRUE);
         keywords.put("var",    VAR);
         keywords.put("while",  WHILE);
+        // Poderia ser transformado em um Map imutável, se desejado.
     }
 
     public Scanner(String source) {
@@ -54,33 +63,30 @@ public class Scanner {
     }
 
     /**
-     * [Livro 4.4] Método principal do Scanner.
-     * Itera sobre todo o código-fonte até encontrar o fim (EOF).
-     * @return Uma lista contendo todos os tokens encontrados.
+     * Método principal do analisador léxico.
+     *
+     * Percorre todo o código-fonte gerando tokens até encontrar EOF.
+     * Sempre retorna uma lista completa, incluindo o token EOF final.
      */
     public List<Token> scanTokens() {
         while (!isAtEnd()) {
-            // No início de cada loop, estamos prontos para ler o próximo lexema.
-            // O ponteiro 'start' alcança o 'current'.
             start = current;
             scanToken();
         }
 
-        // [Livro 4.4] Sempre adicionamos um token de EOF ao final.
-        // Isso ajuda o Parser a saber que o arquivo terminou de forma limpa.
         tokens.add(new Token(EOF, "", null, line));
         return tokens;
     }
 
     /**
-     * [Livro 4.5] Reconhecimento de Lexemas.
-     * Analisa o caractere atual e decide qual tipo de token ele inicia.
+     * Avalia o caractere atual e determina qual token iniciar.
+     * Implementa exatamente o fluxograma do Capítulo 4.
      */
     private void scanToken() {
-        char c = advance(); // Consome o caractere atual
+        char c = advance();
 
         switch (c) {
-            // [Livro 4.5] Tokens de caractere único
+            // Tokens de caractere único
             case '(': addToken(LEFT_PAREN); break;
             case ')': addToken(RIGHT_PAREN); break;
             case '{': addToken(LEFT_BRACE); break;
@@ -92,105 +98,71 @@ public class Scanner {
             case ';': addToken(SEMICOLON); break;
             case '*': addToken(STAR); break;
 
-            // [Livro 4.5] Operadores que podem ter dois caracteres (! vs !=)
-            // Utilizamos 'match' para olhar o próximo caractere condicionalmente.
-            case '!':
-                addToken(match('=') ? BANG_EQUAL : BANG);
-                break;
-            case '=':
-                addToken(match('=') ? EQUAL_EQUAL : EQUAL);
-                break;
-            case '<':
-                addToken(match('=') ? LESS_EQUAL : LESS);
-                break;
-            case '>':
-                addToken(match('=') ? GREATER_EQUAL : GREATER);
-                break;
+            // Operadores compostos (lookahead condicional)
+            case '!': addToken(match('=') ? BANG_EQUAL : BANG); break;
+            case '=': addToken(match('=') ? EQUAL_EQUAL : EQUAL); break;
+            case '<': addToken(match('=') ? LESS_EQUAL : LESS); break;
+            case '>': addToken(match('=') ? GREATER_EQUAL : GREATER); break;
 
-            // [Livro 4.5] Barras: Podem ser divisão (/) ou comentário (//)
+            // Comentários e barra
             case '/':
                 if (match('/')) {
-                    // Um comentário vai até o final da linha.
-                    // Note que usamos 'peek' pois não queremos incluir o \n no comentário.
                     while (peek() != '\n' && !isAtEnd()) advance();
                 } else {
                     addToken(SLASH);
                 }
                 break;
 
-            // [Livro 4.5] Caracteres em branco (Whitespace)
-            // Simplesmente ignoramos para permitir indentação livre.
+            // Whitespace ignorado
             case ' ':
             case '\r':
             case '\t':
                 break;
 
             case '\n':
-                line++; // Incrementa contador de linha
+                line++;
                 break;
 
-            // [Livro 4.6] Literais de String
-            case '"': string(); break;
+            // Literais de string (suportam múltiplas linhas)
+            case '"':
+                string();
+                break;
 
             default:
-                // [Livro 4.6] Dígitos (Números)
                 if (isDigit(c)) {
                     number();
-                } 
-                // [Livro 4.7] Letras (Identificadores ou Keywords)
-                else if (isAlpha(c)) {
+                } else if (isAlpha(c)) {
                     identifier();
-                } 
-                else {
-                    // [Livro 4.1] Tratamento de erro léxico
+                } else {
                     Lox.error(line, "Unexpected character.");
                 }
                 break;
         }
     }
 
-    // --- Rotinas Específicas de Tipo (Literais e Identificadores) ---
+    // --- Reconhecimento de tipos específicos ---
 
-    /**
-     * [Livro 4.7] Processa Identificadores e Palavras Reservadas.
-     * Lê caracteres alfanuméricos consecutivamente. Ao final, verifica se
-     * o texto formado é uma palavra reservada (ex: 'var'). Se não for, é um IDENTIFIER.
-     */
     private void identifier() {
         while (isAlphaNumeric(peek())) advance();
 
         String text = source.substring(start, current);
         TokenType type = keywords.get(text);
-        
         if (type == null) type = IDENTIFIER;
-        
+
         addToken(type);
     }
 
-    /**
-     * [Livro 4.6] Processa Literais Numéricos.
-     * Lida com números inteiros e ponto flutuante.
-     */
     private void number() {
         while (isDigit(peek())) advance();
 
-        // Procura pela parte fracionária
-        // Exige que haja um dígito APÓS o ponto (lookahead de 2 caracteres)
-        // Isso evita confundir '123.method()' com um número.
         if (peek() == '.' && isDigit(peekNext())) {
-            // Consome o '.'
-            advance();
-
+            advance(); // Consome '.'
             while (isDigit(peek())) advance();
         }
 
         addToken(NUMBER, Double.parseDouble(source.substring(start, current)));
     }
 
-    /**
-     * [Livro 4.6] Processa Literais de String.
-     * Suporta strings multilinhas, mantendo a contagem de linhas correta.
-     */
     private void string() {
         while (peek() != '"' && !isAtEnd()) {
             if (peek() == '\n') line++;
@@ -202,41 +174,26 @@ public class Scanner {
             return;
         }
 
-        // O fechamento da aspa (")
-        advance();
+        advance(); // Fecha aspas
 
-        // Trim das aspas ao redor: captura apenas o miolo da string.
         String value = source.substring(start + 1, current - 1);
         addToken(STRING, value);
     }
 
-    // --- Métodos Auxiliares de Navegação (Helpers) ---
+    // --- Helpers de navegação e lookahead ---
 
-    /**
-     * Verifica se o caractere atual é o esperado.
-     * Se for, consome-o (avança current) e retorna true.
-     * Útil para operadores compostos (ex: '!=').
-     */
     private boolean match(char expected) {
         if (isAtEnd()) return false;
         if (source.charAt(current) != expected) return false;
-
         current++;
         return true;
     }
 
-    /**
-     * Lookahead (1 caractere): Retorna o caractere atual sem consumi-lo.
-     */
     private char peek() {
         if (isAtEnd()) return '\0';
         return source.charAt(current);
     }
 
-    /**
-     * Lookahead (2 caracteres): Retorna o próximo caractere sem consumi-lo.
-     * Necessário para distinguir números decimais de chamadas de método.
-     */
     private char peekNext() {
         if (current + 1 >= source.length()) return '\0';
         return source.charAt(current + 1);
@@ -260,9 +217,6 @@ public class Scanner {
         return current >= source.length();
     }
 
-    /**
-     * Consome o caractere atual e retorna-o, avançando o cursor.
-     */
     private char advance() {
         return source.charAt(current++);
     }
