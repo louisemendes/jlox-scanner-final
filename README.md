@@ -299,11 +299,47 @@ O interpretador é modular e segue as fases tradicionais de construção de uma 
 
 ---
 
-## 7. Configuração do Maven
 
-### 7.1 Verificando instalação
+## Configuração do Maven
+Verificando instalação
 
 ```bash
 mvn -v
+```
+
+## Estrutura do Projeto Maven
+
+```swift
+jlox-scanner-final/
+ ├── pom.xml
+ ├── src/
+ │   └── main/java/com/craftinginterpreters/lox/
+ └── README.md
+```
+
+## Compilação e Execução (Compilar com Maven)
+
+```bash
+        mvn clean compile
+```
+
+## Executar o REPL
+
+```bash
+java -cp target/classes com.craftinginterpreters.lox.Lox
+```
+
+Exemplo:
+
+```shell
+> print 1 + 2;
+3
+```
+
+## Executar um arquivo .lox
+```bash
+java -cp target/classes com.craftinginterpreters.lox.Lox caminho/arquivo.lox
+```
+
 
 
