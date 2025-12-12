@@ -1,6 +1,7 @@
 package com.craftinginterpreters.lox;
 
 import java.util.List;
+import java.util.ArrayList; // [Cap. 10] Necessário para lista de argumentos
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
@@ -13,13 +14,25 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * - Cap. 7 (Evaluating Expressions)
  * - Cap. 8 (Statements and State)
  * - Cap. 9 (Control Flow)
+ * - Cap. 10 (Functions)
  */
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
+    // [Cap. 10] Ambiente Global.
+    // Mantemos uma referência fixa para definir funções nativas depois.
+    final Environment globals = new Environment();
+
     // [Cap. 8] Ambiente Global/Atual.
-    // Começa apenas com o escopo global. Conforme blocos são entrados, 
-    // este campo aponta para o novo ambiente local.
-    private Environment environment = new Environment();
+    // Começa apontando para o global.
+    private Environment environment = globals;
+
+    /**
+     * [Cap. 10] Construtor.
+     * Necessário para inicializar funções nativas no futuro.
+     */
+    public Interpreter() {
+        // Futuro: globals.define("clock", new LoxClock());
+    }
 
     /**
      * [Cap. 8] Ponto de entrada para execução de uma lista de comandos.
@@ -108,6 +121,18 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    // [Cap. 10 - NOVO] Stub para declaração de função.
+    @Override
+    public Void visitFunctionStmt(Stmt.Function stmt) {
+        return null; // Implementar depois
+    }
+
+    // [Cap. 10 - NOVO] Stub para retorno de função.
+    @Override
+    public Void visitReturnStmt(Stmt.Return stmt) {
+        return null; // Implementar depois
+    }
+
     // --- Avaliação de Expressões ---
 
     private Object evaluate(Expr expr) {
@@ -167,6 +192,31 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    // [Cap. 10 - NOVO] Lógica de execução de chamadas
+    @Override
+    public Object visitCallExpr(Expr.Call expr) {
+        Object callee = evaluate(expr.callee);
+
+        List<Object> arguments = new ArrayList<>();
+        for (Expr argument : expr.arguments) {
+            arguments.add(evaluate(argument));
+        }
+
+        if (!(callee instanceof LoxCallable)) {
+            throw new RuntimeError(expr.paren, "Can only call functions and classes.");
+        }
+
+        LoxCallable function = (LoxCallable)callee;
+
+        if (arguments.size() != function.arity()) {
+            throw new RuntimeError(expr.paren, "Expected " +
+                function.arity() + " arguments but got " +
+                arguments.size() + ".");
+        }
+
+        return function.call(this, arguments);
+    }
+
     @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
         return evaluate(expr.expression);
@@ -182,11 +232,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         // [Cap. 9] Lógica de Curto-Circuito (Short-circuit).
         Object left = evaluate(expr.left);
 
-        if (expr.operator.type == TokenType.OR) {
-            // Se for OR e o esquerdo já for verdadeiro, retorna o esquerdo.
+        if (expr.operator.type == OR) {
             if (isTruthy(left)) return left;
         } else {
-            // Se for AND e o esquerdo for falso, retorna o esquerdo (falso).
             if (!isTruthy(left)) return left;
         }
 
@@ -218,27 +266,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     // --- Utilitários (Helpers) ---
 
-    /**
-     * [Cap. 7] Verifica operandos numéricos para operações unárias (-).
-     */
     private void checkNumberOperand(Token operator, Object operand) {
         if (operand instanceof Double) return;
         throw new RuntimeError(operator, "Operand must be a number.");
     }
 
-    /**
-     * [Cap. 7] Verifica operandos numéricos para operações binárias (+, -, *, /).
-     */
     private void checkNumberOperands(Token operator, Object left, Object right) {
         if (left instanceof Double && right instanceof Double) return;
         throw new RuntimeError(operator, "Operands must be numbers.");
     }
 
-    /**
-     * [Cap. 7] Regra de 'Truthiness' do Lox.
-     * - false e nil são falsos.
-     * - Tudo o mais é verdadeiro.
-     */
     private boolean isTruthy(Object object) {
         if (object == null) return false;
         if (object instanceof Boolean) return (boolean)object;
@@ -251,10 +288,6 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return a.equals(b);
     }
 
-    /**
-     * [Cap. 7] Converte o resultado de volta para String para impressão.
-     * Trata o caso de inteiros (remover o .0 do double).
-     */
     private String stringify(Object object) {
         if (object == null) return "nil";
 
