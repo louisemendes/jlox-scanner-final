@@ -1,0 +1,41 @@
+// [DEMONSTRAÇÃO POO: CLASSES, MÉTODOS E INIT]
+
+class Livro {
+    // Inicializador (Construtor)
+    init(titulo, autor) {
+        this.titulo = titulo;
+        this.autor = autor;
+        this.disponivel = true;
+    }
+
+    // Método que usa 'this' e acessa campos
+    emprestar() {
+        if (this.disponivel) {
+            this.disponivel = false;
+            print this.titulo + " foi emprestado por " + this.autor;
+        } else {
+            print this.titulo + " já está emprestado.";
+        }
+    }
+
+    devolver() {
+        this.disponivel = true;
+        print this.titulo + " devolvido.";
+    }
+}
+
+// 1. Criação da Instância (Chama init)
+var livro1 = Livro("O Interpretador Lox", "Robert Nystrom");
+
+print "--- Teste de Instância ---";
+print livro1; // Deve imprimir 'Livro instance'
+
+// 2. Acesso e Atribuição de Propriedades
+livro1.copias = 50;
+print "Copias disponiveis: " + livro1.copias; // Exemplo de 'get'
+
+// 3. Chamada de Métodos
+livro1.emprestar();
+livro1.emprestar(); // Chama o else (logica interna do metodo)
+livro1.devolver();
+livro1.emprestar();
