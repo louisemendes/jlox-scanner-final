@@ -21,13 +21,22 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     // [Cap. 11] Rastreia se estamos dentro de uma função (para validar return).
     private FunctionType currentFunction = FunctionType.NONE;
 
+    // [Cap. 12 - NOVO] Rastreia se estamos dentro de uma classe (para validar 'this').
+    private ClassType currentClass = ClassType.NONE;
+
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
     }
 
     private enum FunctionType {
         NONE,
-        FUNCTION
+        FUNCTION,
+        METHOD // [Cap. 12] Diferencia funções soltas de métodos
+    }
+
+    private enum ClassType {
+        NONE,
+        CLASS
     }
 
     // --- Ponto de Entrada ---
@@ -48,10 +57,28 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - NOVO] Stub para Classes
+    // [Cap. 12 - ATUALIZADO] Resolve a declaração de classe e seus métodos.
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
-        return null; // Implementar depois
+        ClassType enclosingClass = currentClass;
+        currentClass = ClassType.CLASS;
+
+        declare(stmt.name);
+        define(stmt.name);
+
+        // [Cap. 12] O escopo do 'this' envolve todos os métodos da classe.
+        beginScope();
+        scopes.peek().put("this", true);
+
+        for (Stmt.Function method : stmt.methods) {
+            FunctionType declaration = FunctionType.METHOD;
+            resolveFunction(method, declaration);
+        }
+
+        endScope();
+
+        currentClass = enclosingClass;
+        return null;
     }
 
     @Override
@@ -149,10 +176,11 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - NOVO] Stub para Get
+    // [Cap. 12 - ATUALIZADO] Resolve a expressão do objeto (ex: bolo em bolo.cor)
     @Override
     public Void visitGetExpr(Expr.Get expr) {
-        return null; // Implementar depois
+        resolve(expr.object);
+        return null;
     }
 
     @Override
@@ -173,16 +201,24 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    // [Cap. 12 - NOVO] Stub para Set
+    // [Cap. 12 - ATUALIZADO] Resolve valor e objeto do Set (ex: bolo.cor = "Azul")
     @Override
     public Void visitSetExpr(Expr.Set expr) {
-        return null; // Implementar depois
+        resolve(expr.value);
+        resolve(expr.object);
+        return null;
     }
 
-    // [Cap. 12 - NOVO] Stub para This
+    // [Cap. 12 - ATUALIZADO] Resolve o 'this'
     @Override
     public Void visitThisExpr(Expr.This expr) {
-        return null; // Implementar depois
+        if (currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, "Can't use 'this' outside of a class.");
+            return null;
+        }
+
+        resolveLocal(expr, expr.keyword);
+        return null;
     }
 
     @Override

@@ -27,7 +27,10 @@ class LoxInstance {
 
         // 2. Se não achou campo, tenta buscar MÉTODO na classe
         LoxFunction method = klass.findMethod(name.lexeme);
-        if (method != null) return method;
+        
+        // [Cap. 12 - ATUALIZADO] Se achou um método, vincula ele a esta instância ('this').
+        // Isso cria um novo ambiente onde "this" aponta para este objeto.
+        if (method != null) return method.bind(this);
 
         // Se não achou nada, erro.
         throw new RuntimeError(name, 

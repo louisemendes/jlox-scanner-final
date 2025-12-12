@@ -327,10 +327,10 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return value;
     }
 
-    // [Cap. 12 - NOVO] Stub para This
+    // [Cap. 12] Execução do 'this'
     @Override
     public Object visitThisExpr(Expr.This expr) {
-        return null; // Implementar depois
+        return lookUpVariable(expr.keyword, expr);
     }
 
     @Override

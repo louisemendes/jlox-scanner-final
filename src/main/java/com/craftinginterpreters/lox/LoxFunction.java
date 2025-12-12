@@ -13,6 +13,17 @@ class LoxFunction implements LoxCallable {
     this.declaration = declaration;
   }
 
+  /**
+   * [Cap. 12 - NOVO] Cria um vínculo (binding) entre a função e uma instância.
+   * Quando acessamos um método (ex: bolo.comer), precisamos criar uma nova versão dessa função
+   * que tenha um ambiente específico onde a variável "this" existe e aponta para o "bolo".
+   */
+  LoxFunction bind(LoxInstance instance) {
+    Environment environment = new Environment(closure);
+    environment.define("this", instance);
+    return new LoxFunction(declaration, environment);
+  }
+
   @Override
   public String toString() {
     return "<fn " + declaration.name.lexeme + ">";
