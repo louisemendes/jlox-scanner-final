@@ -1,19 +1,45 @@
-# Diretórios de build e pacotes
+# --- Diretórios de Build e Compilação ---
 target/
 bin/
 out/
+build/
 
-# Arquivos de log e cache
+# --- Arquivos Compilados e Empacotados ---
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# --- Arquivos de Logs e Cache ---
 *.log
-# Arquivos de IDEs (VS Code, IntelliJ, Eclipse)
+# Logs de erro quando a JVM trava (Crash logs)
+hs_err_pid*
+
+# --- Arquivos de IDEs ---
+# IntelliJ
 .idea/
 *.iml
+*.iws
+
+# Eclipse
 .classpath
 .project
 .settings/
+
+# VS Code
 .vscode/
 
-# Binários e Arquivos Gerados
-*.class
-*.jar
-*.zip
+# --- Arquivos de Sistema Operacional (Lixo) ---
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~

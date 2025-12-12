@@ -1,83 +1,125 @@
 package com.craftinginterpreters.lox;
 
+import java.util.List;
+
 import static com.craftinginterpreters.lox.TokenType.*;
 
-import java.util.List;
-import java.util.Objects;
-
 /**
- * Interpreter: implementa Expr.Visitor<Object> e Stmt.Visitor<Void> para avaliar
- * e executar o código.
+ * Interpreter (Interpretador).
+ * Responsável por executar a Árvore de Sintaxe Abstrata (AST) gerada pelo Parser.
+ * Implementa o padrão Visitor para percorrer os nós da árvore e calcular os resultados.
+ *
+ * Referências:
+ * - Cap. 7 (Evaluating Expressions)
+ * - Cap. 8 (Statements and State)
+ * - Cap. 9 (Control Flow)
  */
-// Implementa as duas interfaces Visitor
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
-    // NOVO: Campo para o ambiente global de variáveis
+    // [Cap. 8] Ambiente Global/Atual.
+    // Começa apenas com o escopo global. Conforme blocos são entrados, 
+    // este campo aponta para o novo ambiente local.
     private Environment environment = new Environment();
 
-    // NOVO: Entrypoint público para avaliar uma LISTA de instruções
+    /**
+     * [Cap. 8] Ponto de entrada para execução de uma lista de comandos.
+     */
     public void interpret(List<Stmt> statements) {
         try {
             for (Stmt statement : statements) {
-                execute(statement); // Executa cada instrução
+                execute(statement);
             }
         } catch (RuntimeError error) {
-            Lox.runtimeError(error); // Trata o erro de execução
+            Lox.runtimeError(error);
         }
     }
 
-    // --- MÉTODOS DE EXECUÇÃO AUXILIARES ---
+    // --- Execução de Statements (Comandos) ---
 
     private void execute(Stmt stmt) {
         stmt.accept(this);
     }
 
-    // NOVO: Executa um bloco de instruções em um novo escopo
+    /**
+     * [Cap. 8] Executa um bloco de código dentro de um escopo específico.
+     * Salva o ambiente anterior, troca para o novo, executa, e restaura o anterior.
+     */
     void executeBlock(List<Stmt> statements, Environment environment) {
         Environment previous = this.environment;
         try {
-            this.environment = environment; // Muda para o novo ambiente
+            this.environment = environment;
 
             for (Stmt statement : statements) {
                 execute(statement);
             }
         } finally {
-            this.environment = previous; // Restaura o ambiente anterior
+            this.environment = previous;
         }
     }
 
-    // --- VISITORS DE EXPRESSÃO (MANTIDOS E COMPLETOS) ---
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        executeBlock(stmt.statements, new Environment(environment));
+        return null;
+    }
 
-    // Entrypoint público para avaliar uma expressão (mantido)
-    public Object evaluate(Expr expr) {
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expression);
+        return null;
+    }
+
+    @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expression);
+        System.out.println(stringify(value));
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = null;
+        // Se houver inicializador (var a = 1;), avalia.
+        // Se não (var a;), o valor permanece null (nil).
+        if (stmt.initializer != null) {
+            value = evaluate(stmt.initializer);
+        }
+
+        environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        // [Cap. 9] Executa o corpo repetidamente enquanto a condição for verdadeira.
+        while (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.body);
+        }
+        return null;
+    }
+
+    // --- Avaliação de Expressões ---
+
+    private Object evaluate(Expr expr) {
         return expr.accept(this);
     }
-    // ... (visitLiteralExpr, visitGroupingExpr, visitUnaryExpr, visitBinaryExpr, stringify, isTruthy, isEqual, checkNumberOperand/s) ...
 
     @Override
-    public Object visitLiteralExpr(Expr.Literal expr) {
-        return expr.value;
-    }
-
-    @Override
-    public Object visitGroupingExpr(Expr.Grouping expr) {
-        return evaluate(expr.expression);
-    }
-
-    @Override
-    public Object visitUnaryExpr(Expr.Unary expr) {
-        Object right = evaluate(expr.right);
-
-        switch (expr.operator.type) {
-            case MINUS:
-                checkNumberOperand(expr.operator, right);
-                return -((Double) right);
-            case BANG:
-                return !isTruthy(right);
-        }
-
-        // unreachable
-        return null;
+    public Object visitAssignExpr(Expr.Assign expr) {
+        // [Cap. 8] Avalia o valor e o atribui à variável existente.
+        Object value = evaluate(expr.value);
+        environment.assign(expr.name, value);
+        return value;
     }
 
     @Override
@@ -86,114 +128,120 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         Object right = evaluate(expr.right);
 
         switch (expr.operator.type) {
-            // arithmetic
-            case PLUS:
-                // suporte para concatenação de strings
-                if (left instanceof Double && right instanceof Double) {
-                    return (Double) left + (Double) right;
-                }
-                if (left instanceof String && right instanceof String) {
-                    return (String) left + (String) right;
-                }
-                // também permitir number + string? não por padrão — reporta erro
-                throw new RuntimeError(expr.operator,
-                        "Operador '+' requer dois números ou duas strings.");
-            case MINUS:
-                checkNumberOperands(expr.operator, left, right);
-                return (Double) left - (Double) right;
-            case STAR:
-                checkNumberOperands(expr.operator, left, right);
-                return (Double) left * (Double) right;
-            case SLASH:
-                checkNumberOperands(expr.operator, left, right);
-                return (Double) left / (Double) right;
-
-            // comparison
             case GREATER:
                 checkNumberOperands(expr.operator, left, right);
-                return (Double) left > (Double) right;
+                return (double)left > (double)right;
             case GREATER_EQUAL:
                 checkNumberOperands(expr.operator, left, right);
-                return (Double) left >= (Double) right;
+                return (double)left >= (double)right;
             case LESS:
                 checkNumberOperands(expr.operator, left, right);
-                return (Double) left < (Double) right;
+                return (double)left < (double)right;
             case LESS_EQUAL:
                 checkNumberOperands(expr.operator, left, right);
-                return (Double) left <= (Double) right;
-
-            // equality
-            case BANG_EQUAL:
-                return !isEqual(left, right);
-            case EQUAL_EQUAL:
-                return isEqual(left, right);
+                return (double)left <= (double)right;
+            case BANG_EQUAL: return !isEqual(left, right);
+            case EQUAL_EQUAL: return isEqual(left, right);
+            case MINUS:
+                checkNumberOperands(expr.operator, left, right);
+                return (double)left - (double)right;
+            case PLUS:
+                // [Cap. 7] Sobrecarga do operador + (Soma numérica ou Concatenação).
+                if (left instanceof Double && right instanceof Double) {
+                    return (double)left + (double)right;
+                }
+                if (left instanceof String && right instanceof String) {
+                    return (String)left + (String)right;
+                }
+                throw new RuntimeError(expr.operator,
+                    "Operands must be two numbers or two strings.");
+            case SLASH:
+                checkNumberOperands(expr.operator, left, right);
+                return (double)left / (double)right;
+            case STAR:
+                checkNumberOperands(expr.operator, left, right);
+                return (double)left * (double)right;
         }
 
-        // unreachable
-        return null;
-    }
-
-    // --- VISITORS DE INSTRUÇÃO (NOVOS) ---
-
-    @Override
-    public Void visitExpressionStmt(Stmt.Expression stmt) {
-        evaluate(stmt.expression); // Avalia a expressão, mas ignora o resultado
+        // Unreachable.
         return null;
     }
 
     @Override
-    public Void visitPrintStmt(Stmt.Print stmt) {
-        Object value = evaluate(stmt.expression); // Avalia a expressão
-        System.out.println(stringify(value)); // Imprime o resultado
-        return null;
+    public Object visitGroupingExpr(Expr.Grouping expr) {
+        return evaluate(expr.expression);
     }
 
     @Override
-    public Void visitVarStmt(Stmt.Var stmt) {
-        Object value = null;
-        if (stmt.initializer != null) { // Se houver inicializador, avalia a expressão
-            value = evaluate(stmt.initializer);
+    public Object visitLiteralExpr(Expr.Literal expr) {
+        return expr.value;
+    }
+
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        // [Cap. 9] Lógica de Curto-Circuito (Short-circuit).
+        Object left = evaluate(expr.left);
+
+        if (expr.operator.type == TokenType.OR) {
+            // Se for OR e o esquerdo já for verdadeiro, retorna o esquerdo.
+            if (isTruthy(left)) return left;
+        } else {
+            // Se for AND e o esquerdo for falso, retorna o esquerdo (falso).
+            if (!isTruthy(left)) return left;
         }
-        // Define a variável no ambiente atual
-        environment.define(stmt.name.lexeme, value);
-        return null;
-    }
-    
-    @Override
-    public Void visitBlockStmt(Stmt.Block stmt) {
-        // Cria um novo ambiente aninhado e o executa
-        executeBlock(stmt.statements, new Environment(environment));
-        return null;
+
+        // Só avalia o lado direito se necessário.
+        return evaluate(expr.right);
     }
 
     @Override
-    public Void visitIfStmt(Stmt.If stmt) {
-        if (isTruthy(evaluate(stmt.condition))) {
-            execute(stmt.thenBranch); // Condição verdadeira: executa 'then'
-        } else if (stmt.elseBranch != null) {
-            execute(stmt.elseBranch); // Condição falsa: executa 'else' (se existir)
+    public Object visitUnaryExpr(Expr.Unary expr) {
+        Object right = evaluate(expr.right);
+
+        switch (expr.operator.type) {
+            case BANG:
+                return !isTruthy(right);
+            case MINUS:
+                checkNumberOperand(expr.operator, right);
+                return -(double)right;
         }
+
+        // Unreachable.
         return null;
     }
 
-
-    // --- UTILITÁRIOS (MANTIDOS E COMPLETOS) ---
-
-    public String stringify(Object object) {
-        if (object == null) return "nil";
-        // Em Lox, números são double; remover .0 quando inteiro
-        if (object instanceof Double) {
-            double d = (Double) object;
-            if (d == (long) d) {
-                return String.format("%d", (long) d);
-            }
-        }
-        return object.toString();
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        // [Cap. 8] Busca o valor da variável no ambiente.
+        return environment.get(expr.name);
     }
 
+    // --- Utilitários (Helpers) ---
+
+    /**
+     * [Cap. 7] Verifica operandos numéricos para operações unárias (-).
+     */
+    private void checkNumberOperand(Token operator, Object operand) {
+        if (operand instanceof Double) return;
+        throw new RuntimeError(operator, "Operand must be a number.");
+    }
+
+    /**
+     * [Cap. 7] Verifica operandos numéricos para operações binárias (+, -, *, /).
+     */
+    private void checkNumberOperands(Token operator, Object left, Object right) {
+        if (left instanceof Double && right instanceof Double) return;
+        throw new RuntimeError(operator, "Operands must be numbers.");
+    }
+
+    /**
+     * [Cap. 7] Regra de 'Truthiness' do Lox.
+     * - false e nil são falsos.
+     * - Tudo o mais é verdadeiro.
+     */
     private boolean isTruthy(Object object) {
         if (object == null) return false;
-        if (object instanceof Boolean) return (Boolean) object;
+        if (object instanceof Boolean) return (boolean)object;
         return true;
     }
 
@@ -203,14 +251,21 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return a.equals(b);
     }
 
-    private void checkNumberOperand(Token operator, Object operand) {
-        if (operand instanceof Double) return;
-        throw new RuntimeError(operator, "Operando deve ser um número.");
-    }
+    /**
+     * [Cap. 7] Converte o resultado de volta para String para impressão.
+     * Trata o caso de inteiros (remover o .0 do double).
+     */
+    private String stringify(Object object) {
+        if (object == null) return "nil";
 
-    private void checkNumberOperands(Token operator, Object left, Object right) {
-        if (left instanceof Double && right instanceof Double) return;
-        throw new RuntimeError(operator, "Operadores requerem números.");
+        if (object instanceof Double) {
+            String text = object.toString();
+            if (text.endsWith(".0")) {
+                text = text.substring(0, text.length() - 2);
+            }
+            return text;
+        }
+
+        return object.toString();
     }
 }
-
