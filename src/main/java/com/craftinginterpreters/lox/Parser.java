@@ -12,7 +12,7 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * Utiliza a técnica "Recursive Descent Parsing" (Análise Descendente Recursiva).
  *
  * Referência: Crafting Interpreters - Capítulos 6 (Parsing Expressions), 
- * 8 (Statements), 9 (Control Flow) e 10 (Functions).
+ * 8 (Statements), 9 (Control Flow), 10 (Functions) e 12 (Classes).
  */
 public class Parser {
 
@@ -47,6 +47,9 @@ public class Parser {
      */
     private Stmt declaration() {
         try {
+            // [Cap. 12 - NOVO] Reconhece declaração de Classe
+            if (match(CLASS)) return classDeclaration();
+
             // [Cap. 10] Reconhece declaração de função
             if (match(FUN)) return function("function"); 
 
@@ -57,6 +60,24 @@ public class Parser {
             synchronize();
             return null;
         }
+    }
+
+    /**
+     * [Cap. 12 - NOVO] Faz o parsing de uma declaração de classe.
+     * Gramática: class Nome { métodos... }
+     */
+    private Stmt classDeclaration() {
+        Token name = consume(IDENTIFIER, "Expect class name.");
+        consume(LEFT_BRACE, "Expect '{' before class body.");
+
+        List<Stmt.Function> methods = new ArrayList<>();
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            methods.add(function("method"));
+        }
+
+        consume(RIGHT_BRACE, "Expect '}' after class body.");
+
+        return new Stmt.Class(name, methods);
     }
 
     /**
@@ -109,12 +130,28 @@ public class Parser {
         if (match(FOR)) return forStatement();     // [Cap. 9] Laço For
         if (match(IF)) return ifStatement();       // [Cap. 9] Condicional If
         if (match(PRINT)) return printStatement(); // [Cap. 8] Print
+        if (match(RETURN)) return returnStatement(); // [Cap. 10] Return (Recuperado)
         if (match(WHILE)) return whileStatement(); // [Cap. 9] Laço While
         
         // [Cap. 8] Bloco de escopo { ... }
         if (match(LEFT_BRACE)) return new Stmt.Block(block());
 
         return expressionStatement();
+    }
+
+    /**
+     * [Cap. 10] Declaração de Retorno (return value;).
+     * (Adicionado pois estava faltando no seu código base)
+     */
+    private Stmt returnStatement() {
+        Token keyword = previous();
+        Expr value = null;
+        if (!check(SEMICOLON)) {
+            value = expression();
+        }
+
+        consume(SEMICOLON, "Expect ';' after return value.");
+        return new Stmt.Return(keyword, value);
     }
 
     /**
@@ -261,15 +298,12 @@ public class Parser {
                 Token name = ((Expr.Variable)expr).name;
                 return new Expr.Assign(name, value);
             } 
-            
-            // [ATUALIZAÇÃO CAP 12]
-            // Comentado temporariamente pois estamos fazendo apenas o Cap 10 agora.
-            // A classe Expr.Get ainda não foi gerada no GenerateAst.
-            /* else if (expr instanceof Expr.Get) {
-                Token name = ((Expr.Get)expr).name;
-                return new Expr.Set(object, name, value);
+            // [Cap. 12 - NOVO] Lógica de Set (Atribuição em Propriedade)
+            // Se o parser viu "obj.prop" (Get) e agora encontrou um "=", vira um "Set".
+            else if (expr instanceof Expr.Get) {
+                Expr.Get get = (Expr.Get)expr;
+                return new Expr.Set(get.object, get.name, value);
             }
-            */
 
             error(equals, "Invalid assignment target.");
         }
@@ -379,25 +413,28 @@ public class Parser {
             return new Expr.Unary(operator, right);
         }
 
-        // [Cap. 10 ATUALIZAÇÃO] 
-        // Antes chamava primary(). Agora chama call() para suportar funções.
-        // A precedência é: Unary -> Call -> Primary
+        // [Cap. 10] Chamada de Função
         return call();
     }
 
     /**
-     * [Cap. 10 - NOVO] Parsing de Chamadas de Função.
-     * Reconhece chamadas como: funcao() ou funcao(1, 2)
-     * Pode ser encadeado: funcao()()
+     * [Cap. 10 e 12] Parsing de Chamadas e Acessos.
+     * Atualizado no Cap 12 para suportar 'dot' (ponto) para propriedades.
      */
     private Expr call() {
         Expr expr = primary();
 
         while (true) { 
-            // Se encontrar um '(', é uma chamada de função
+            // [Cap. 10] Chamada de função: ()
             if (match(LEFT_PAREN)) {
                 expr = finishCall(expr);
-            } else {
+            } 
+            // [Cap. 12 - NOVO] Acesso a propriedade: .identificador
+            else if (match(DOT)) {
+                Token name = consume(IDENTIFIER, "Expect property name after '.'.");
+                expr = new Expr.Get(expr, name);
+            } 
+            else {
                 break;
             }
         }
@@ -406,16 +443,13 @@ public class Parser {
     }
 
     /**
-     * [Cap. 10 - NOVO] Auxiliar para processar os argumentos da função.
-     * Lê a lista de argumentos separados por vírgula até encontrar o ')' final.
+     * [Cap. 10] Auxiliar para processar os argumentos da função.
      */
     private Expr finishCall(Expr callee) {
         List<Expr> arguments = new ArrayList<>();
         
-        // Se não for ')' logo de cara, temos argumentos
         if (!check(RIGHT_PAREN)) {
             do {
-                // Java tem um limite de 255 argumentos em métodos, o Lox imita isso.
                 if (arguments.size() >= 255) {
                     error(peek(), "Can't have more than 255 arguments.");
                 }
@@ -425,7 +459,6 @@ public class Parser {
 
         Token paren = consume(RIGHT_PAREN, "Expect ')' after arguments.");
 
-        // Retorna o nó Call que criamos no GenerateAst.java
         return new Expr.Call(callee, paren, arguments);
     }
 
@@ -441,6 +474,9 @@ public class Parser {
         if (match(NUMBER, STRING)) {
             return new Expr.Literal(previous().literal);
         }
+
+        // [Cap. 12 - NOVO] Palavra-chave 'this'
+        if (match(THIS)) return new Expr.This(previous());
 
         // [Cap. 8] Identificadores (Uso de Variável)
         if (match(IDENTIFIER)) {
