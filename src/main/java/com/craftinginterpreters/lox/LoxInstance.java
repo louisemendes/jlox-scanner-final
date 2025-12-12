@@ -10,9 +10,28 @@ import java.util.Map;
  */
 class LoxInstance {
     private LoxClass klass;
+    
+    // [Cap. 12] Mapa de campos (propriedades) da instância.
+    private final Map<String, Object> fields = new HashMap<>();
 
     LoxInstance(LoxClass klass) {
         this.klass = klass;
+    }
+
+    // [Cap. 12] Busca uma propriedade.
+    Object get(Token name) {
+        if (fields.containsKey(name.lexeme)) {
+            return fields.get(name.lexeme);
+        }
+
+        // Se não achou, erro de runtime.
+        throw new RuntimeError(name, 
+            "Undefined property '" + name.lexeme + "'.");
+    }
+
+    // [Cap. 12] Define uma propriedade.
+    void set(Token name, Object value) {
+        fields.put(name.lexeme, value);
     }
 
     @Override

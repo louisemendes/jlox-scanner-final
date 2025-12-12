@@ -271,10 +271,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return function.call(this, arguments);
     }
 
-    // [Cap. 12 - NOVO] Stub para Get (acesso a propriedade)
+    // [Cap. 12] Acesso a propriedade: objeto.propriedade
     @Override
     public Object visitGetExpr(Expr.Get expr) {
-        return null; // Implementar depois
+        Object object = evaluate(expr.object);
+        
+        if (object instanceof LoxInstance) {
+            return ((LoxInstance) object).get(expr.name);
+        }
+
+        throw new RuntimeError(expr.name, "Only instances have properties.");
     }
 
     @Override
@@ -301,10 +307,18 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return evaluate(expr.right);
     }
 
-    // [Cap. 12 - NOVO] Stub para Set (definição de propriedade)
+    // [Cap. 12] Definição de propriedade: objeto.propriedade = valor
     @Override
     public Object visitSetExpr(Expr.Set expr) {
-        return null; // Implementar depois
+        Object object = evaluate(expr.object);
+
+        if (!(object instanceof LoxInstance)) {
+            throw new RuntimeError(expr.name, "Only instances have fields.");
+        }
+
+        Object value = evaluate(expr.value);
+        ((LoxInstance)object).set(expr.name, value);
+        return value;
     }
 
     // [Cap. 12 - NOVO] Stub para This
