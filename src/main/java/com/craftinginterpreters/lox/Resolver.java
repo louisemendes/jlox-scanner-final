@@ -31,7 +31,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private enum FunctionType {
         NONE,
         FUNCTION,
-        METHOD // [Cap. 12] Diferencia funções soltas de métodos
+        INITIALIZER, // [Cap. 12] Tipo específico para construtores
+        METHOD       // [Cap. 12] Diferencia funções soltas de métodos
     }
 
     private enum ClassType {
@@ -72,6 +73,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
         for (Stmt.Function method : stmt.methods) {
             FunctionType declaration = FunctionType.METHOD;
+            
+            // [Cap. 12] Se o método se chama "init", ele é um inicializador.
+            if (method.name.lexeme.equals("init")) {
+                declaration = FunctionType.INITIALIZER;
+            }
+            
             resolveFunction(method, declaration);
         }
 
@@ -127,6 +134,11 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         }
 
         if (stmt.value != null) {
+            // [Cap. 12] É proibido retornar um valor dentro de um inicializador (init).
+            if (currentFunction == FunctionType.INITIALIZER) {
+                Lox.error(stmt.keyword, "Can't return a value from an initializer.");
+            }
+
             resolve(stmt.value);
         }
         return null;
