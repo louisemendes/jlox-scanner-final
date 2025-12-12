@@ -22,14 +22,17 @@ public class GenerateAst {
         String outputDir = args[0];
 
         // [Cap. 5] Definição da Gramática de Expressões (Expr).
-        // Atualizado para incluir estruturas dos Capítulos 8 (Variáveis), 9 (Lógica) e 10 (Funções).
+        // Atualizado para incluir estruturas dos Capítulos 8, 9, 10 e 12 (Classes).
         defineAst(outputDir, "Expr", Arrays.asList(
             "Assign   : Token name, Expr value",                 // [Cap. 8] Atribuição
             "Binary   : Expr left, Token operator, Expr right",  // [Cap. 5] Binário
-            "Call     : Expr callee, Token paren, List<Expr> arguments", // [Cap. 10] Chamada de Função (NOVO)
+            "Call     : Expr callee, Token paren, List<Expr> arguments", // [Cap. 10] Chamada de Função
+            "Get      : Expr object, Token name",                // [Cap. 12] Acesso a propriedade: obj.prop (NOVO)
             "Grouping : Expr expression",                        // [Cap. 5] Agrupamento
             "Literal  : Object value",                           // [Cap. 5] Literal
             "Logical  : Expr left, Token operator, Expr right",  // [Cap. 9] Lógico (and/or)
+            "Set      : Expr object, Token name, Expr value",    // [Cap. 12] Setar propriedade: obj.prop = valor (NOVO)
+            "This     : Token keyword",                          // [Cap. 12] Palavra-chave 'this' (NOVO)
             "Unary    : Token operator, Expr right",             // [Cap. 5] Unário
             "Variable : Token name"                              // [Cap. 8] Variável
         ));
@@ -38,11 +41,12 @@ public class GenerateAst {
         // Isso não existia no script original do Cap. 5, mas é necessário para o Cap. 8+.
         defineAst(outputDir, "Stmt", Arrays.asList(
             "Block      : List<Stmt> statements",                        // [Cap. 8] Bloco
+            "Class      : Token name, List<Stmt.Function> methods",      // [Cap. 12] Declaração de Classe (NOVO)
             "Expression : Expr expression",                              // [Cap. 8] Expr Statement
-            "Function   : Token name, List<Token> params, List<Stmt> body", // [Cap. 10] Declaração de Função (NOVO)
+            "Function   : Token name, List<Token> params, List<Stmt> body", // [Cap. 10] Declaração de Função
             "If         : Expr condition, Stmt thenBranch, Stmt elseBranch", // [Cap. 9] If
             "Print      : Expr expression",                              // [Cap. 8] Print
-            "Return     : Token keyword, Expr value",                    // [Cap. 10] Retorno de Função (NOVO)
+            "Return     : Token keyword, Expr value",                    // [Cap. 10] Retorno de Função
             "Var        : Token name, Expr initializer",                 // [Cap. 8] Var
             "While      : Expr condition, Stmt body"                     // [Cap. 9] While
         ));
