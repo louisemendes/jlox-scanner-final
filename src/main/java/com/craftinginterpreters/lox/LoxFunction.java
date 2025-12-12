@@ -4,8 +4,12 @@ import java.util.List;
 
 class LoxFunction implements LoxCallable {
   private final Stmt.Function declaration;
+  
+  // [Cap. 10] Closure: O ambiente que estava ativo quando a função foi declarada.
+  private final Environment closure;
 
-  LoxFunction(Stmt.Function declaration) {
+  LoxFunction(Stmt.Function declaration, Environment closure) {
+    this.closure = closure;
     this.declaration = declaration;
   }
 
@@ -21,21 +25,18 @@ class LoxFunction implements LoxCallable {
 
   @Override
   public Object call(Interpreter interpreter, List<Object> arguments) {
-    // [Cap. 10] Cria um novo ambiente (escopo) para a execução da função.
-    // Esse ambiente é filho do ambiente global (por enquanto, até chegarmos em Closures no Cap 11).
-    Environment environment = new Environment(interpreter.globals);
+    // [Cap. 10] ATUALIZADO: Usamos o 'closure' capturado como pai, e não mais o 'globals'.
+    // Isso permite que a função acesse variáveis que estavam no escopo quando ela foi criada.
+    Environment environment = new Environment(closure);
 
-    // Define os parâmetros no escopo da função
     for (int i = 0; i < declaration.params.size(); i++) {
       environment.define(declaration.params.get(i).lexeme,
           arguments.get(i));
     }
 
     try {
-      // Executa o corpo da função
       interpreter.executeBlock(declaration.body, environment);
     } catch (Return returnValue) {
-      // [Cap. 10] Se houver um 'return', capturamos a exceção e devolvemos o valor
       return returnValue.value;
     }
 
