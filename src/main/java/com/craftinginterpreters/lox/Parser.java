@@ -12,7 +12,7 @@ import static com.craftinginterpreters.lox.TokenType.*;
  * Utiliza a técnica "Recursive Descent Parsing" (Análise Descendente Recursiva).
  *
  * Referência: Crafting Interpreters - Capítulos 6 (Parsing Expressions), 
- * 8 (Statements) e 9 (Control Flow).
+ * 8 (Statements), 9 (Control Flow) e 10 (Functions).
  */
 public class Parser {
 
@@ -230,9 +230,16 @@ public class Parser {
             if (expr instanceof Expr.Variable) {
                 Token name = ((Expr.Variable)expr).name;
                 return new Expr.Assign(name, value);
-            } else if (expr instanceof Expr.Get) {
-                // (Futuro suporte para set em objetos ficaria aqui)
+            } 
+            
+            // [ATUALIZAÇÃO CAP 12]
+            // Comentado temporariamente pois estamos fazendo apenas o Cap 10 agora.
+            // A classe Expr.Get ainda não foi gerada no GenerateAst.
+            /* else if (expr instanceof Expr.Get) {
+                Token name = ((Expr.Get)expr).name;
+                return new Expr.Set(object, name, value);
             }
+            */
 
             error(equals, "Invalid assignment target.");
         }
@@ -342,7 +349,54 @@ public class Parser {
             return new Expr.Unary(operator, right);
         }
 
-        return primary();
+        // [Cap. 10 ATUALIZAÇÃO] 
+        // Antes chamava primary(). Agora chama call() para suportar funções.
+        // A precedência é: Unary -> Call -> Primary
+        return call();
+    }
+
+    /**
+     * [Cap. 10 - NOVO] Parsing de Chamadas de Função.
+     * Reconhece chamadas como: funcao() ou funcao(1, 2)
+     * Pode ser encadeado: funcao()()
+     */
+    private Expr call() {
+        Expr expr = primary();
+
+        while (true) { 
+            // Se encontrar um '(', é uma chamada de função
+            if (match(LEFT_PAREN)) {
+                expr = finishCall(expr);
+            } else {
+                break;
+            }
+        }
+
+        return expr;
+    }
+
+    /**
+     * [Cap. 10 - NOVO] Auxiliar para processar os argumentos da função.
+     * Lê a lista de argumentos separados por vírgula até encontrar o ')' final.
+     */
+    private Expr finishCall(Expr callee) {
+        List<Expr> arguments = new ArrayList<>();
+        
+        // Se não for ')' logo de cara, temos argumentos
+        if (!check(RIGHT_PAREN)) {
+            do {
+                // Java tem um limite de 255 argumentos em métodos, o Lox imita isso.
+                if (arguments.size() >= 255) {
+                    error(peek(), "Can't have more than 255 arguments.");
+                }
+                arguments.add(expression());
+            } while (match(COMMA));
+        }
+
+        Token paren = consume(RIGHT_PAREN, "Expect ')' after arguments.");
+
+        // Retorna o nó Call que criamos no GenerateAst.java
+        return new Expr.Call(callee, paren, arguments);
     }
 
     /**
