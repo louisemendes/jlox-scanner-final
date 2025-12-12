@@ -1,0 +1,28 @@
+// [DEMONSTRAÇÃO LÓGICA E FLUXO DE CONTROLE]
+
+fun fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 2) + fibonacci(n - 1);
+}
+
+// Loop para imprimir os 8 primeiros números de Fibonacci
+var i = 0;
+var max = 8;
+print "--- Sequência Fibonacci ---";
+
+while (i < max) {
+  var resultado = fibonacci(i);
+  print resultado;
+  i = i + 1;
+}
+
+// Demonstração de AND/OR (Curto-circuito)
+var x = 10;
+var y = 20;
+print "--- Curto-Circuito ---";
+
+if (x > 5 and y < 30) {
+    print "Ambas as condições são verdadeiras.";
+} else {
+    print "Pelo menos uma é falsa.";
+}
