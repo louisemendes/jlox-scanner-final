@@ -176,8 +176,8 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             value = evaluate(stmt.value);
         }
 
-        // Lança a exceção para desenrolar a pilha até o método call()
-        throw new Return(value);
+        // Forçamos o uso da classe de Exceção explicitamente
+        throw new com.craftinginterpreters.lox.Return(value);
     }
 
     // --- Avaliação de Expressões ---
