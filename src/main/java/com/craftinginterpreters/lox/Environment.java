@@ -45,6 +45,34 @@ class Environment {
     }
 
     /**
+     * [Cap. 11 - NOVO] Navega pela cadeia de ambientes.
+     * Retorna o ambiente que está a uma exata "distância" (número de saltos) do atual.
+     * Usado pelo Resolver para encontrar onde a variável foi declarada sem precisar buscar pelo nome.
+     */
+    Environment ancestor(int distance) {
+        Environment environment = this;
+        for (int i = 0; i < distance; i++) {
+            environment = environment.enclosing;
+        }
+        return environment;
+    }
+
+    /**
+     * [Cap. 11 - NOVO] Busca o valor de uma variável em uma distância específica.
+     * Não precisa verificar se existe (como no get dinâmico), pois o Resolver já garantiu isso.
+     */
+    Object getAt(int distance, String name) {
+        return ancestor(distance).values.get(name);
+    }
+
+    /**
+     * [Cap. 11 - NOVO] Atribui valor a uma variável em uma distância específica.
+     */
+    void assignAt(int distance, Token name, Object value) {
+        ancestor(distance).values.put(name.lexeme, value);
+    }
+
+    /**
      * [Cap. 8] Busca o valor de uma variável.
      * Se a variável não for encontrada neste escopo, tenta buscar no escopo pai (recursão).
      */
