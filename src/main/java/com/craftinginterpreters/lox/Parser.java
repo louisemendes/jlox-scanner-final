@@ -47,6 +47,9 @@ public class Parser {
      */
     private Stmt declaration() {
         try {
+            // [Cap. 10] Reconhece declaração de função
+            if (match(FUN)) return function("function"); 
+
             if (match(VAR)) return varDeclaration();
 
             return statement();
@@ -54,6 +57,33 @@ public class Parser {
             synchronize();
             return null;
         }
+    }
+
+    /**
+     * [Cap. 10] Faz o parsing de uma declaração de função.
+     * Gramática: fun nome(params) { corpo }
+     * @param kind Passamos "function" ou "method" (para reutilizar em classes no futuro).
+     */
+    private Stmt.Function function(String kind) {
+        Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+        consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
+
+        List<Token> parameters = new ArrayList<>();
+        if (!check(RIGHT_PAREN)) {
+            do {
+                if (parameters.size() >= 255) {
+                    error(peek(), "Can't have more than 255 parameters.");
+                }
+
+                parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+            } while (match(COMMA));
+        }
+        consume(RIGHT_PAREN, "Expect ')' after parameters.");
+
+        consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+        List<Stmt> body = block();
+
+        return new Stmt.Function(name, parameters, body);
     }
 
     /**
