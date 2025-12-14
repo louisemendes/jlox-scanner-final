@@ -32,7 +32,8 @@ print livro1; // Deve imprimir 'Livro instance'
 
 // 2. Acesso e Atribuição de Propriedades
 livro1.copias = 50;
-print "Copias disponiveis: " + livro1.copias; // Exemplo de 'get'
+print "Copias disponiveis: ";
+print livro1.copias; // Imprime 50
 
 // 3. Chamada de Métodos
 livro1.emprestar();
